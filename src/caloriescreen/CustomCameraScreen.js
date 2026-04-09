@@ -85,7 +85,7 @@ export default function CustomCameraScreen({ navigation }) {
       try {
         const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
         navigation.replace('PhotoCalorieScreen', { photoUri: photo.uri, mealType: 'Quick Log' });
-      } catch (e) {
+      } catch (_error) {
         Alert.alert('Error', 'Could not take photo.');
       }
     }
@@ -93,28 +93,23 @@ export default function CustomCameraScreen({ navigation }) {
 
   const handleOpenGallery = async () => {
     try {
-      // Immediately hide camera interface to prevent flash
       setIsGalleryActive(true);
-      
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Gallery permission is required.');
-        setIsGalleryActive(false);
-        return;
-      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7,
       });
+
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        // Use replace to completely replace CustomCameraScreen in the stack
-        navigation.replace('PhotoCalorieScreen', { photoUri: result.assets[0].uri, mealType: 'Quick Log' });
+        navigation.replace('PhotoCalorieScreen', {
+          photoUri: result.assets[0].uri,
+          mealType: 'Quick Log',
+        });
       } else {
         setIsGalleryActive(false);
       }
-    } catch (e) {
+    } catch (_error) {
       Alert.alert('Error', 'Could not open gallery.');
       setIsGalleryActive(false);
     }

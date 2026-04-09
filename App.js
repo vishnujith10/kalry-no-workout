@@ -1,3 +1,4 @@
+import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -8,6 +9,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Text, View, StyleSheet } from 'react-native';
+
 import CustomCameraScreen from './src/caloriescreen/CustomCameraScreen';
 import MealPreferencesScreen from './src/caloriescreen/MealPreferencesScreen';
 import PhotoCalorieScreen from './src/caloriescreen/PhotoCalorieScreen';
@@ -17,11 +20,10 @@ import QuickLogScreen from './src/caloriescreen/QuickLogScreen';
 import SavedMealsScreen from './src/caloriescreen/SavedMealsScreen';
 import VoiceCalorieScreen from './src/caloriescreen/VoiceCalorieScreen';
 import VoicePostCalorieScreen from './src/caloriescreen/VoicePostCalorieScreen';
-import CardioPlayerScreen from './src/cardioscreen/CardioPlayerScreen';
-import CreateWorkoutScreen from './src/cardioscreen/CreateWorkoutScreen';
-import WorkoutStartScreen from './src/cardioscreen/WorkoutStartScreen';
-import { AuthProvider } from './src/context/AuthContext'; // ✅ ADD THIS
+
+import { AuthProvider } from './src/context/AuthContext';
 import { OnboardingProvider } from './src/context/OnboardingContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import HomeScreen from './src/homescreens/HomeScreen';
 import JournalScreen from './src/homescreens/JournalScreen';
 import MainDashboardScreen from './src/homescreens/MainDashboardScreen';
@@ -35,15 +37,10 @@ import MiniProfileScreen from './src/onboarding/MiniProfileScreen';
 import ReferralSourceScreen from './src/onboarding/ReferralSourceScreen';
 import TimePerDayScreen from './src/onboarding/TimePerDayScreen';
 import WeightGoalScreen from './src/onboarding/WeightGoalScreen';
-import WorkoutPreferencesScreen from './src/onboarding/WorkoutPreferencesScreen';
 import AppSettingsScreen from './src/profilescreen/AppSettingsScreen';
 import PersonalInfoScreen from './src/profilescreen/PersonalInfoScreen';
 import PreferencesScreen from './src/profilescreen/PreferencesScreen';
 import ProfileScreen from './src/profilescreen/ProfileScreen';
-import AllExercisesScreen from './src/routinescreen/AllExercisesScreen';
-import CategoryWorkoutsScreen from './src/routinescreen/CategoryWorkoutsScreen';
-import ExerciseDetailScreen from './src/routinescreen/ExerciseDetailScreen';
-import StartWorkoutScreen from './src/routinescreen/StartWorkoutScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthLoadingScreen from './src/screens/AuthLoadingScreen';
 import GoalMoodScreen from './src/screens/GoalMoodScreen';
@@ -51,19 +48,26 @@ import GoalScreen from './src/screens/GoalScreen';
 import ManualLogScreen from './src/screens/ManualLogScreen';
 import MinimalSignupTestScreen from './src/screens/MinimalSignupTestScreen';
 import TargetSummaryScreen from './src/screens/TargetSummaryScreen';
-import WorkoutSpaceScreen from './src/screens/WorkoutSpaceScreen';
 import SleepTrackerScreen from './src/sleepscreen/SleepTrackerScreen';
 import StepTrackerScreen from './src/steptrackerscreen/StepTrackerScreen';
-import AddWeightScreen from './src/weightscreen/AddWeightScreen';
-import WeightTrackerScreen from './src/weightscreen/WeightTrackerScreen';
 import WelcomeScreen from './src/welcomescreen/WelcomeScreen';
-import ExerciseScreen from './src/workoutscreen/ExerciseScreen';
-import WorkoutHistoryScreen from './src/workoutscreen/WorkoutHistoryScreen';
-import WorkoutSaveScreen from './src/workoutscreen/WorkoutSaveScreen';
 
 if (typeof global.structuredClone !== 'function') {
   global.structuredClone = (obj) => JSON.parse(JSON.stringify(obj));
 }
+
+// Dummy Screen Component for deleted features
+const DummyScreen = () => {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+      <Ionicons name="construct-outline" size={48} color="#9CA3AF" style={{ marginBottom: 16 }} />
+      <Text style={{ fontSize: 18, color: '#4B5563', fontFamily: 'Lexend-Medium' }}>Feature Removed</Text>
+      <Text style={{ fontSize: 14, color: '#6B7280', fontFamily: 'Manrope-Regular', marginTop: 8, paddingHorizontal: 32, textAlign: 'center' }}>
+        This page was part of the cardio/workout feature set which has been securely removed.
+      </Text>
+    </View>
+  );
+};
 
 const Tab = createBottomTabNavigator();
 
@@ -83,9 +87,9 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Workouts" component={WorkoutHistoryScreen} />
-      <Tab.Screen name="Create" component={CreateWorkoutScreen} />
-      <Tab.Screen name="Exercise" component={ExerciseScreen} />
+      <Tab.Screen name="Workouts" component={DummyScreen} />
+      <Tab.Screen name="Create" component={DummyScreen} />
+      <Tab.Screen name="Exercise" component={DummyScreen} />
     </Tab.Navigator>
   );
 }
@@ -103,12 +107,9 @@ export default function App() {
     'Ubuntu-Bold': require('./assets/Lexend,Manrope,Ubuntu/Ubuntu/Ubuntu-Bold.ttf'),
   });
 
-  // Clear any persisted navigation state on app startup
-  // This prevents the app from restoring to a wrong screen after errors or long app closure
   useEffect(() => {
     const clearNavigationState = async () => {
       try {
-        // React Navigation stores state in AsyncStorage with this key pattern
         const navigationKeys = [
           '@react-navigation/navigation',
           'persist:root',
@@ -118,12 +119,9 @@ export default function App() {
         for (const key of navigationKeys) {
           try {
             await AsyncStorage.removeItem(key);
-          } catch (e) {
-            // Ignore errors if key doesn't exist
-          }
+          } catch (e) {}
         }
         
-        // Also clear any navigation-related keys
         const allKeys = await AsyncStorage.getAllKeys();
         const navKeys = allKeys.filter(key => 
           key.includes('navigation') || 
@@ -133,12 +131,8 @@ export default function App() {
         if (navKeys.length > 0) {
           await AsyncStorage.multiRemove(navKeys);
         }
-      } catch (error) {
-        console.error('Error clearing navigation state:', error);
-        // Don't block app startup if clearing fails
-      }
+      } catch (error) {}
     };
-    
     clearNavigationState();
   }, []);
 
@@ -156,14 +150,12 @@ export default function App() {
     <ErrorBoundary>
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        {/* ✅ AuthProvider wraps everything to provide authentication context */}
         <AuthProvider>
-          <OnboardingProvider>
+          <ThemeProvider>
+            <OnboardingProvider>
               <NavigationContainer 
                 onReady={onLayoutRootView}
-                // Disable navigation state persistence to prevent restoring to wrong screen
-                // This ensures app always starts at AuthLoading, not a previously visited screen
-                onStateChange={() => {}} // Clear any persisted state
+                onStateChange={() => {}}
               >
               <Stack.Navigator 
                 initialRouteName="AuthLoading" 
@@ -185,8 +177,6 @@ export default function App() {
                 <Stack.Screen name="WeightGoal" component={WeightGoalScreen} />
                 <Stack.Screen name="TargetSummary" component={TargetSummaryScreen} />
                 <Stack.Screen name="TimePerDay" component={TimePerDayScreen} />
-                <Stack.Screen name="WorkoutPreferences" component={WorkoutPreferencesScreen} />
-                <Stack.Screen name="WorkoutSpace" component={WorkoutSpaceScreen} />
                 <Stack.Screen name="GoalSummary" component={GoalSummaryScreen} />
                 <Stack.Screen name="Login" component={LoginScreen} />
                 <Stack.Screen name="Signup" component={SignupScreen} />
@@ -220,19 +210,9 @@ export default function App() {
                 <Stack.Screen name="VoicePostCalorieScreen" component={VoicePostCalorieScreen} />
                 <Stack.Screen name="MinimalSignupTest" component={MinimalSignupTestScreen} />
                 <Stack.Screen name="Tabs" component={MainTabs} />
-                <Stack.Screen 
-                  name="Exercise" 
-                  component={ExerciseScreen}
-                  options={{
-                    animation: 'slide_from_right',
-                    gestureDirection: 'horizontal',
-                  }}
-                />
-                <Stack.Screen name="CategoryWorkouts" component={CategoryWorkoutsScreen} options={{ headerShown: false }} />
+                
                 <Stack.Screen name="Goal" component={GoalScreen} />
                 <Stack.Screen name="SleepTrackerScreen" component={SleepTrackerScreen} options={{ headerShown: false }} />
-                <Stack.Screen name="WeightTrackerScreen" component={WeightTrackerScreen} options={{ headerShown: false }} />
-                <Stack.Screen name="AddWeightScreen" component={AddWeightScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="HydrationTrackerScreen" component={HydrationTrackerScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="StepTrackerScreen" component={StepTrackerScreen} options={{ headerShown: false }} />
                 <Stack.Screen 
@@ -244,25 +224,21 @@ export default function App() {
                     gestureDirection: 'horizontal',
                   }} 
                 />
-                <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
-                <Stack.Screen name="Create" component={CreateWorkoutScreen} />
-                <Stack.Screen name="Workouts" component={WorkoutHistoryScreen} />
+                
                 <Stack.Screen name="PostCalorieScreen" component={PostCalorieScreen} />
                 <Stack.Screen name="QuickLogScreen" component={QuickLogScreen} />
-                <Stack.Screen name="StartWorkout" component={StartWorkoutScreen} />
-                <Stack.Screen name="AllExercisesScreen" component={AllExercisesScreen} options={{ headerShown: false }} />
+                
                 <Stack.Screen name="CustomCameraScreen" component={CustomCameraScreen} options={{ headerShown: false }} />
-                <Stack.Screen name="CardioPlayerScreen" component={CardioPlayerScreen} />
-                <Stack.Screen name="WorkoutStart" component={WorkoutStartScreen} />
+                
                 <Stack.Screen name="ProgressScreen" component={ProgressScreen} />
-                <Stack.Screen name="WorkoutSaveScreen" component={WorkoutSaveScreen} />
                 <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />
                 <Stack.Screen name="Preferences" component={PreferencesScreen} />
                 <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
                 <Stack.Screen name="MiniProfile" component={MiniProfileScreen} />
               </Stack.Navigator>
             </NavigationContainer>
-          </OnboardingProvider>
+            </OnboardingProvider>
+          </ThemeProvider>
         </AuthProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>

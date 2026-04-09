@@ -7,21 +7,23 @@ import React, { useContext, useEffect, useState } from 'react';
 import { Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 
 const LIGHT_BG = '#F8F9FE';
 const CARD_BG = '#FFFFFF';
-const TEXT_PRIMARY = '#1A1D2E';
-const TEXT_SECONDARY = '#6B7280';
 const PRIMARY_PURPLE = '#A182F9';
 const SUCCESS_GREEN = '#10B981';
 const ENERGY_ORANGE = '#F97316';
 const WARNING_YELLOW = '#F59E0B';
+const TEXT_PRIMARY = '#1A1D2E';
+const TEXT_SECONDARY = '#6B7280';
 
 const genders = ['Male', 'Female'];
 
 const MiniProfileScreen = () => {
   const navigation = useNavigation();
   const { setOnboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
   const [selectedGender, setSelectedGender] = useState('Male');
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
@@ -245,9 +247,89 @@ const MiniProfileScreen = () => {
     }, 300);
   };
 
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingTop: Platform.OS === 'android' ? 3 : 0,
+    },
+    heading: {
+      fontSize: 20,
+      fontFamily: 'Lexend-Bold',
+      color: colors.textPrimary,
+      textAlign: 'center',
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 8,
+      fontFamily: 'Manrope-Regular',
+    },
+    inputCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    input: {
+      flex: 1,
+      height: 48,
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontFamily: 'Manrope-Regular',
+      marginLeft: 12,
+    },
+    measurementCard: {
+      flex: 1,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 16,
+      marginHorizontal: 6,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    measurementLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginBottom: 8,
+      fontFamily: 'Manrope-Regular',
+    },
+    measurementInput: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      fontFamily: 'Lexend-Bold',
+      flex: 1,
+    },
+    measurementUnit: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      marginLeft: 8,
+    },
+    googleWelcomeText: {
+      fontSize: 14,
+      color: colors.textPrimary,
+      fontFamily: 'Manrope-Regular',
+      marginLeft: 8,
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={dynamicStyles.container}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -258,13 +340,13 @@ const MiniProfileScreen = () => {
           {!isGoogleUser && (
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
               <View style={styles.backButtonCircle}>
-                <Ionicons name="chevron-back" size={24} color={TEXT_PRIMARY} />
+                <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
               </View>
             </TouchableOpacity>
           )}
           {isGoogleUser && <View style={{ width: 44 }} />}
           
-          <Text style={styles.heading}>Personal Setup</Text>
+          <Text style={dynamicStyles.heading}>Personal Setup</Text>
           <View style={{ width: 44 }} />
         </View>
 
@@ -272,7 +354,7 @@ const MiniProfileScreen = () => {
           <View style={styles.googleWelcomeContainer}>
             <View style={styles.googleWelcomeCard}>
               <MaterialCommunityIcons name="google" size={20} color={PRIMARY_PURPLE} />
-              <Text style={styles.googleWelcomeText}>
+              <Text style={dynamicStyles.googleWelcomeText}>
                 Welcome! Let&apos;s complete your profile
               </Text>
             </View>
@@ -289,13 +371,13 @@ const MiniProfileScreen = () => {
         >
         <View style={styles.formWrap}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Name</Text>
-            <View style={styles.inputCard}>
-              <MaterialCommunityIcons name="account" size={20} color={TEXT_SECONDARY} />
+            <Text style={dynamicStyles.label}>Name</Text>
+            <View style={dynamicStyles.inputCard}>
+              <MaterialCommunityIcons name="account" size={20} color={colors.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={dynamicStyles.input}
                 placeholder="Enter your name"
-                placeholderTextColor={TEXT_SECONDARY}
+                placeholderTextColor={colors.textSecondary}
                 value={name}
                 onChangeText={setName}
               />
@@ -303,13 +385,13 @@ const MiniProfileScreen = () => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Age</Text>
-            <View style={styles.inputCard}>
-              <MaterialCommunityIcons name="calendar" size={20} color={TEXT_SECONDARY} />
+            <Text style={dynamicStyles.label}>Age</Text>
+            <View style={dynamicStyles.inputCard}>
+              <MaterialCommunityIcons name="calendar" size={20} color={colors.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={dynamicStyles.input}
                 placeholder="Enter your age"
-                placeholderTextColor={TEXT_SECONDARY}
+                placeholderTextColor={colors.textSecondary}
                 value={age}
                 onChangeText={setAge}
                 keyboardType="numeric"
@@ -318,7 +400,7 @@ const MiniProfileScreen = () => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Gender</Text>
+            <Text style={dynamicStyles.label}>Gender</Text>
             <View 
               ref={genderRowRef}
               style={styles.genderRow}
@@ -352,7 +434,7 @@ const MiniProfileScreen = () => {
                     <MaterialCommunityIcons 
                       name={gender === 'Male' ? 'gender-male' : 'gender-female'} 
                       size={20} 
-                      color={selectedGender === gender ? "#FFFFFF" : TEXT_SECONDARY} 
+                      color={selectedGender === gender ? "#FFFFFF" : colors.textSecondary} 
                     />
                     <Text style={selectedGender === gender ? styles.genderTextSelected : styles.genderText}>
                       {gender}
@@ -406,37 +488,37 @@ const MiniProfileScreen = () => {
           </View>
 
           <View style={styles.measurementsRow}>
-            <View style={styles.measurementCard}>
-              <Text style={styles.measurementLabel}>Height</Text>
+            <View style={dynamicStyles.measurementCard}>
+              <Text style={dynamicStyles.measurementLabel}>Height</Text>
               <View style={styles.measurementInputWrapper}>
                 <TextInput
                   ref={heightInputRef}
-                  style={styles.measurementInput}
+                  style={dynamicStyles.measurementInput}
                   placeholder={isMetric ? "170" : "5.6"}
-                  placeholderTextColor={TEXT_SECONDARY}
+                  placeholderTextColor={colors.textSecondary}
                   value={isMetric ? heightCm : heightFt}
                   onChangeText={isMetric ? handleHeightCmChange : handleHeightFtChange}
                   onFocus={handleHeightFocus}
                   keyboardType="numeric"
                 />
-                <Text style={styles.measurementUnit}>{isMetric ? 'cm' : 'ft'}</Text>
+                <Text style={dynamicStyles.measurementUnit}>{isMetric ? 'cm' : 'ft'}</Text>
               </View>
             </View>
 
-            <View style={styles.measurementCard}>
-              <Text style={styles.measurementLabel}>Weight</Text>
+            <View style={dynamicStyles.measurementCard}>
+              <Text style={dynamicStyles.measurementLabel}>Weight</Text>
               <View style={styles.measurementInputWrapper}>
                 <TextInput
                   ref={weightInputRef}
-                  style={styles.measurementInput}
+                  style={dynamicStyles.measurementInput}
                   placeholder={isMetric ? "70" : "154"}
-                  placeholderTextColor={TEXT_SECONDARY}
+                  placeholderTextColor={colors.textSecondary}
                   value={isMetric ? weightKg : weightLbs}
                   onChangeText={isMetric ? handleWeightKgChange : handleWeightLbsChange}
                   onFocus={handleWeightFocus}
                   keyboardType="numeric"
                 />
-                <Text style={styles.measurementUnit}>{isMetric ? 'kg' : 'lbs'}</Text>
+                <Text style={dynamicStyles.measurementUnit}>{isMetric ? 'kg' : 'lbs'}</Text>
               </View>
             </View>
           </View>
@@ -488,11 +570,6 @@ const MiniProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: LIGHT_BG,
-    paddingTop: Platform.OS === 'android' ? 3 : 0,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -4,7 +4,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,12 +18,15 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from '../context/ThemeContext';
 import supabase from "../lib/supabase";
 import { createFoodLog } from "../utils/api";
 
 const VoiceCalorieScreen = ({ navigation, route }) => {
   const { mealType = "Quick Log", selectedDate } = route.params || {};
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const recordingRef = useRef(null);
   const autoStopTimerRef = useRef(null);
   const ensureAudioPermission = async () => {
@@ -189,7 +192,7 @@ const VoiceCalorieScreen = ({ navigation, route }) => {
   // Transcribe audio and show transcription
   const transcribeAudio = async (uri) => {
     try {
-      const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+      const models = ["gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-8b"];
       const audioData = await FileSystem.readAsStringAsync(uri, {
         encoding: "base64",
       });
@@ -238,7 +241,7 @@ const VoiceCalorieScreen = ({ navigation, route }) => {
     setIsConverting(true); // Show full-screen loading modal
     try {
       // Try fastest → robust models sequentially
-      const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+      const models = ["gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-8b"];
       const audioData = await FileSystem.readAsStringAsync(uri, {
         encoding: "base64",
       });
@@ -516,7 +519,7 @@ The JSON object must have this structure:
   // UI rendering logic
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? "light" : "dark"} />
       {/* Full-screen loading overlay when processing Convert */}
       <Modal
         visible={isConverting}
@@ -526,7 +529,7 @@ The JSON object must have this structure:
       >
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size={40} color="#7B61FF" />
+            <ActivityIndicator size={40} color={colors.primary} />
             <Text style={styles.loadingTitle}>Processing...</Text>
             <Text style={styles.loadingSubtext}>
               Analyzing your meal
@@ -537,7 +540,7 @@ The JSON object must have this structure:
 
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color="#333" />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Voice Logging</Text>
         <View style={{ width: 28 }} />
@@ -587,16 +590,16 @@ The JSON object must have this structure:
                     scale: micPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }),
                   },
                 ],
-                shadowColor: '#7B61FF',
+                shadowColor: colors.primary,
                 shadowOpacity: micPulse.interpolate({ inputRange: [0,1], outputRange: [0.15, 0.35]}),
                 shadowRadius: 16,
                 shadowOffset: { width: 0, height: 0 },
                 elevation: 6,
               }}
             >
-              <LinearGradient colors={["#EDE7FF", "#E6FAFF"]} style={styles.micOuterCircle}>
+              <LinearGradient colors={isDark ? ["#2A1A3E", "#1A2A3E"] : ["#EDE7FF", "#E6FAFF"]} style={styles.micOuterCircle}>
                 <View style={styles.micInnerCircle}>
-                  <Ionicons name="mic" size={40} color="#7B61FF" />
+                  <Ionicons name="mic" size={40} color={colors.primary} />
                 </View>
               </LinearGradient>
             </Animated.View>
@@ -612,7 +615,7 @@ The JSON object must have this structure:
             {/* Only show loading in transcription box if we don't have transcribedText yet (i.e., during transcription after Stop) */}
             {isLoading && !transcribedText ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 10 }}>
-                <ActivityIndicator size="small" color="#7B61FF" />
+                <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={[styles.transcriptionText, { marginLeft: 10 }]}>
                   Processing...
                 </Text>
@@ -638,7 +641,7 @@ The JSON object must have this structure:
                   <Ionicons
                     name="fast-food-outline"
                     size={22}
-                    color="#7B61FF"
+                    color={colors.primary}
                     style={{ marginRight: 8 }}
                   />
                   <View style={{ flex: 1 }}>
@@ -648,7 +651,7 @@ The JSON object must have this structure:
                     </Text>
                   </View>
                   <TouchableOpacity>
-                    <Ionicons name="pencil-outline" size={20} color="#888" />
+                    <Ionicons name="pencil-outline" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -660,7 +663,7 @@ The JSON object must have this structure:
                 <Ionicons
                   name="pencil-outline"
                   size={16}
-                  color="#888"
+                  color={colors.textSecondary}
                   style={{ marginLeft: 4 }}
                 />
               </TouchableOpacity>
@@ -679,7 +682,7 @@ The JSON object must have this structure:
                 <Ionicons
                   name="time-outline"
                   size={16}
-                  color="#888"
+                  color={colors.textSecondary}
                   style={{ marginLeft: 4 }}
                 />
               </TouchableOpacity>
@@ -697,7 +700,7 @@ The JSON object must have this structure:
               <Ionicons
                 name="refresh"
                 size={18}
-                color="#7B61FF"
+                color={colors.primary}
                 style={{ marginRight: 6 }}
               />
               <Text style={styles.retryBtnText}>Retry Voice Input</Text>
@@ -737,7 +740,7 @@ The JSON object must have this structure:
             onPress={startRecording}
             disabled={isRecording || isLoading}
           >
-            <Ionicons name="play" size={18} color="#6E54FF" style={{ marginRight: 8 }} />
+            <Ionicons name="play" size={18} color={colors.primary} style={{ marginRight: 8 }} />
             <Text style={styles.startBtnText}>Start</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -780,8 +783,11 @@ The JSON object must have this structure:
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+const createStyles = (colors, isDark) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -789,8 +795,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderColor: "#eee",
-    backgroundColor: "#fff",
+    borderColor: colors.border,
+    backgroundColor: colors.background,
     minHeight: 58,
   },
   backButton: { marginRight: 12 },
@@ -798,7 +804,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: "bold",
-    color: "black",
+    color: colors.textPrimary,
     textAlign: "center",
   },
   content: {
@@ -809,15 +815,64 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   topSpacer: { height: 12 },
-  micVisualWrap: { marginTop: 58, marginBottom: 16 },
-  micOuterCircle: { width: 180, height: 180, borderRadius: 90, alignItems: "center", justifyContent: "center" },
-  micInnerCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 8, borderColor: "#F1EAFE" },
-  micStack: { alignItems: "center", justifyContent: "center" },
-  micRipple: { position: "absolute", width: 200, height: 200, borderRadius: 100, backgroundColor: "#8B78FF20" },
-  transcriptionCard: { width: "100%", marginTop: 46, paddingHorizontal: 4 },
-  transcriptionLabel: { color: "#8B78FF", fontSize: 14, marginLeft: 10, marginBottom: 8 },
-  transcriptionBubble: { backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#EEEAFB", padding: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8 },
-  transcriptionText: { color: "#222", fontSize: 16, lineHeight: 22 },
+  micVisualWrap: {
+    marginTop: 58,
+    marginBottom: 16,
+  },
+  micOuterCircle: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  micInnerCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.cardBackground,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 8,
+    borderColor: isDark ? `${colors.primary}40` : "#F1EAFE",
+  },
+  micStack: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  micRipple: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: isDark ? `${colors.primary}30` : "#8B78FF20",
+  },
+  transcriptionCard: {
+    width: "100%",
+    marginTop: 46,
+    paddingHorizontal: 4,
+  },
+  transcriptionLabel: {
+    color: colors.primary,
+    fontSize: 14,
+    marginLeft: 10,
+    marginBottom: 8,
+  },
+  transcriptionBubble: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    shadowColor: colors.shadow,
+    shadowOpacity: isDark ? 0.2 : 0.05,
+    shadowRadius: 8,
+  },
+  transcriptionText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    lineHeight: 22,
+  },
   centerContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   instructionsSection: {
     width: "100%",
@@ -875,29 +930,85 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionRow: { flexDirection: "row", width: "100%", justifyContent: "space-between", marginTop: 18 },
-  actionRowFixed: { position: "absolute", left: 24, right: 24, bottom: 110 },
-  startBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#EFEBFF", paddingVertical: 14, borderRadius: 24, paddingHorizontal: 22, width: "48%" },
-  startBtnText: { color: "#6E54FF", fontWeight: "bold", fontSize: 16 },
-  stopBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#FFEDEA", paddingVertical: 14, borderRadius: 24, paddingHorizontal: 22, width: "48%" },
-  stopBtnText: { color: "#E26B5E", fontWeight: "bold", fontSize: 16 },
-  convertBtn: { width: "100%", backgroundColor: "#7B61FF", borderRadius: 22, paddingVertical: 16, alignItems: "center", marginTop: 18 },
-  convertBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  convertFixed: { position: "absolute", left: 24, right: 24, bottom: 20 },
+  actionRow: {
+    flexDirection: "row",
+    width: "100%",
+    justifyContent: "space-between",
+    marginTop: 18,
+  },
+  actionRowFixed: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: 110,
+  },
+  startBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: isDark ? `${colors.primary}20` : "#EFEBFF",
+    paddingVertical: 14,
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    width: "48%",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  startBtnText: {
+    color: colors.primary,
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  stopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: isDark ? "#6A2F2A" : "#FFEDEA",
+    paddingVertical: 14,
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    width: "48%",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  stopBtnText: {
+    color: "#E26B5E",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  convertBtn: {
+    width: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 22,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 18,
+  },
+  convertBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  convertFixed: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: 20,
+  },
   instructions: {
-    color: "#888",
+    color: colors.textSecondary,
     marginTop: 8,
     fontSize: 15,
     textAlign: "center",
   },
   sampleText: {
-    color: "#bbb",
+    color: colors.textMuted,
     marginTop: 2,
     fontSize: 13,
     textAlign: "center",
   },
   listeningText: {
-    color: "#7B61FF",
+    color: colors.primary,
     fontWeight: "bold",
     marginBottom: 8,
     fontSize: 18,
@@ -915,13 +1026,22 @@ const styles = StyleSheet.create({
   foodItemRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F6F6F6",
+    backgroundColor: colors.cardBackground,
     borderRadius: 10,
     padding: 10,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  foodItemName: { fontSize: 15, fontWeight: "600", color: "#222" },
-  foodItemKcal: { fontSize: 13, color: "#888" },
+  foodItemName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+  foodItemKcal: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
   suggestedMealRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -930,8 +1050,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 2,
   },
-  suggestedMealLabel: { color: "#888", fontSize: 14 },
-  suggestedMealValue: { color: "#222", fontWeight: "600", fontSize: 15 },
+  suggestedMealLabel: {
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+  suggestedMealValue: {
+    color: colors.textPrimary,
+    fontWeight: "600",
+    fontSize: 15,
+  },
   timeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -940,54 +1067,79 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 2,
   },
-  timeLabel: { color: "#888", fontSize: 14 },
-  timeValue: { color: "#222", fontWeight: "600", fontSize: 15 },
+  timeLabel: {
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+  timeValue: {
+    color: colors.textPrimary,
+    fontWeight: "600",
+    fontSize: 15,
+  },
   editFoodsBtn: {
-    backgroundColor: "#F3F0FF",
+    backgroundColor: isDark ? `${colors.primary}33` : "#F3F0FF",
     borderRadius: 8,
     padding: 10,
     alignItems: "center",
     marginBottom: 8,
     width: "100%",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  editFoodsBtnText: { color: "#7B61FF", fontWeight: "bold", fontSize: 15 },
+  editFoodsBtnText: {
+    color: colors.primary,
+    fontWeight: "bold",
+    fontSize: 15,
+  },
   retryBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 12,
   },
-  retryBtnText: { color: "#7B61FF", fontWeight: "bold", fontSize: 15 },
+  retryBtnText: {
+    color: colors.primary,
+    fontWeight: "bold",
+    fontSize: 15,
+  },
   footerActionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
     padding: 18,
-    backgroundColor: "#fff",
+    backgroundColor: colors.cardBackground,
     borderTopWidth: 1,
-    borderColor: "#eee",
+    borderColor: colors.border,
     position: "absolute",
     left: 0,
   },
   confirmBtn: {
     flex: 1,
-    backgroundColor: "linear-gradient(90deg, #7B61FF 0%, #43E0FF 100%)",
+    backgroundColor: colors.primary,
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
     marginRight: 8,
   },
-  confirmBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  confirmBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
   cancelBtn: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: colors.border,
   },
-  cancelBtnText: { color: "#7B61FF", fontWeight: "bold", fontSize: 16 },
+  cancelBtnText: {
+    color: colors.primary,
+    fontWeight: "bold",
+    fontSize: 16,
+  },
   loadingOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -995,29 +1147,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingContainer: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 24,
     alignItems: "center",
     justifyContent: "center",
     minWidth: 200,
     maxWidth: 250,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: isDark ? 0.4 : 0.2,
     shadowRadius: 12,
     elevation: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   loadingTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#333",
+    color: colors.textPrimary,
     marginTop: 16,
     textAlign: "center",
   },
   loadingSubtext: {
     fontSize: 12,
-    color: "#666",
+    color: colors.textSecondary,
     marginTop: 6,
     textAlign: "center",
     paddingHorizontal: 10,

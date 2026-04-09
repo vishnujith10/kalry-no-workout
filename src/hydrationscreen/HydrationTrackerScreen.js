@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Animated, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
-import { ContextualPersonalizationEngine } from '../algorithms/ContextualPersonalizationEngine';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 import { getResponsiveFontSize, getResponsivePadding } from '../utils/responsive';
 
@@ -21,6 +21,9 @@ const globalHydrationCache = {
 const HydrationTrackerScreen = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
+  const { colors, isDark } = useTheme();
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   // Initialize state with cached data (Instagram pattern)
   const [currentIntake, setCurrentIntake] = useState(() => globalHydrationCache.cachedData?.currentIntake || 0);
   const [dailyGoal, setDailyGoal] = useState(() => globalHydrationCache.cachedData?.dailyGoal || 2.5);
@@ -240,35 +243,7 @@ const HydrationTrackerScreen = () => {
       // Load the most recent goal from database to use as default
       await loadMostRecentGoal(user.id);
       
-      // Initialize context-aware personalization engine
-      const userProfile = {
-        weight: 70, // Default - could be fetched from user profile
-        height: 170, // Default - could be fetched from user profile
-        age: 25, // Default - could be fetched from user profile
-        gender: 'male', // Default - could be fetched from user profile
-        activityLevel: 'moderate', // Default - could be fetched from user profile
-        goal: 'maintenance', // Default - could be fetched from user profile
-        history: [], // Could be populated with recent hydration data
-        weightHistory: [] // Could be fetched from weight tracking
-      };
-      
-      const engine = new ContextualPersonalizationEngine(userProfile);
-      setPersonalizationEngine(engine);
-      
-      // Generate contextual recommendations for hydration
-      const todayCheckIn = {
-        sleepHours: 7, // Default - could be from daily check-in
-        stressLevel: 'medium', // Default - could be from daily check-in
-        energyLevel: 'medium', // Default - could be from daily check-in
-        situation: null // Could be from daily check-in
-      };
-      
-      const context = engine.processCheckInResponses(todayCheckIn);
-      setDailyContext(context);
-      
-      // Generate hydration-specific recommendations
-      const hydrationRecommendations = generateHydrationRecommendations(context, currentIntake, dailyGoal);
-      setContextualRecommendations(hydrationRecommendations);
+      // Generate context-aware recommendations removed
       
       // Clean up any existing duplicates first
       await cleanupDuplicateRecords(user.id, getCurrentDate());
@@ -614,6 +589,10 @@ const HydrationTrackerScreen = () => {
 
   const bestDay = getBestDay();
 
+  const barColorRange = useMemo(
+    () => [palette.barEmpty, palette.barProgress, palette.barSuccess],
+    [palette]
+  );
   
   // Updated weekly data with dynamic today's progress and database data
   const weeklyData = useMemo(() => [
@@ -737,13 +716,6 @@ const HydrationTrackerScreen = () => {
     return calculatedHeight;
   };
 
-  const getBarColor = (data) => {
-    if (data.intake === 0) {
-      return '#e5e7eb'; // Gray for no intake (circle state)
-    }
-    return data.goalAchieved ? '#10b981' : '#8A63F7'; // Green if goal achieved, purple otherwise
-  };
-
   const handleGoalChange = async () => {
     const newGoal = parseFloat(goalInput);
     if (!isNaN(newGoal) && newGoal > 0) {
@@ -850,7 +822,7 @@ const HydrationTrackerScreen = () => {
 
     const backgroundColor = animatedColor.interpolate({
       inputRange: [0, 1, 2],
-      outputRange: ['#e5e7eb', '#8A63F7', '#10b981']
+      outputRange: barColorRange,
     });
 
     return (
@@ -866,10 +838,10 @@ const HydrationTrackerScreen = () => {
           ]}
         />
         <Text style={[
-          styles.dayLabel, 
+          styles.barDayLabel, 
           { 
             fontWeight: data.isToday ? 'bold' : 'normal',
-            color: data.isToday ? '#8A63F7' : '#6b7280'
+            color: data.isToday ? palette.barLabelToday : palette.barLabelDefault
           }
         ]}>
           {data.day}
@@ -891,12 +863,12 @@ const HydrationTrackerScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* Header */}
       <SafeAreaView style={styles.headerContainer}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={24} color="#333" />
+            <Ionicons name="chevron-back" size={24} color={palette.iconPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Hydration</Text>
           <View style={styles.placeholder} />
@@ -947,18 +919,18 @@ const HydrationTrackerScreen = () => {
           {/* Daily Goal Row */}
           <TouchableOpacity style={styles.cardRow} onPress={() => { setGoalInput(dailyGoal.toString()); setModalVisible(true); }}>
             <View style={styles.iconCircle}>
-              <Icon name="droplet" size={18} color="#9333ea" />
+              <Icon name="droplet" size={18} color={palette.iconAccent} />
             </View>
             <Text style={styles.cardText}>Daily Goal: {dailyGoal}L</Text>
-            <Icon name="chevron-right" size={20} color="#ccc" />
+            <Icon name="chevron-right" size={20} color={palette.iconSubtle} />
           </TouchableOpacity>
           {/* Change Daily Intakes Row */}
           <TouchableOpacity style={styles.cardRow} onPress={() => { setIntakeInput1(intake1.toString()); setIntakeInput2(intake2.toString()); setIntakeModalVisible(true); }}>
             <View style={styles.iconCircle}>
-              <Icon name="edit-2" size={18} color="#ccc" />
+              <Icon name="edit-2" size={18} color={palette.iconSubtle} />
             </View>
             <Text style={styles.cardText}>Change daily intakes</Text>
-            <Icon name="chevron-right" size={20} color="#ccc" />
+            <Icon name="chevron-right" size={20} color={palette.iconSubtle} />
           </TouchableOpacity>
           {/* Reminders Row */}
           {/* <View style={styles.cardRow}>
@@ -1007,8 +979,8 @@ const HydrationTrackerScreen = () => {
         {/* Best Day Card */}
         <View style={styles.card}>
           <View style={styles.cardRow1}>
-            <View style={[styles.iconCircle, { backgroundColor: '#dbeafe' }]}> 
-              <Icon name="droplet" size={20} color="#2563eb" />
+            <View style={[styles.iconCircle, styles.bestDayIcon]}>
+              <Icon name="droplet" size={20} color={palette.iconBlue} />
             </View>
             <View>
               <Text style={styles.bestDayTitle}>Best Day</Text>
@@ -1087,15 +1059,62 @@ const HydrationTrackerScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (themeColors, isDark) => ({
+  background: themeColors.background,
+  headerBackground: themeColors.cardBackground,
+  cardBackground: themeColors.cardBackground,
+  textPrimary: themeColors.textPrimary,
+  textSecondary: themeColors.textSecondary,
+  textMuted: themeColors.textMuted,
+  border: themeColors.border,
+  primary: themeColors.primary,
+  accentPurple: '#8A63F7',
+  accentGreen: '#10b981',
+  iconPrimary: themeColors.textPrimary,
+  iconAccent: themeColors.primary,
+  iconSubtle: isDark ? '#94A3B8' : '#CCCCCC',
+  iconBlue: isDark ? '#A5B4FC' : '#2563eb',
+  iconCircleBg: isDark ? 'rgba(147, 51, 234, 0.2)' : '#ede9fe',
+  glassBackground: isDark ? 'rgba(255,255,255,0.08)' : '#E8E8E8',
+  glassBorder: 'rgba(255, 255, 255, 0.3)',
+  glassRim: 'rgba(255, 255, 255, 0.4)',
+  glassHighlight: 'rgba(255, 255, 255, 0.2)',
+  waterSurface: 'rgba(255, 255, 255, 0.6)',
+  addButtonBg: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.9)',
+  addButtonBorder: isDark ? 'rgba(124, 58, 237, 0.5)' : 'rgba(124, 58, 237, 0.3)',
+  addButtonText: isDark ? '#E7DCFF' : '#7c3aed',
+  bestDayIconBg: isDark ? 'rgba(37, 99, 235, 0.18)' : '#dbeafe',
+  barEmpty: isDark ? 'rgba(255,255,255,0.2)' : '#e5e7eb',
+  barProgress: '#8A63F7',
+  barSuccess: '#10b981',
+  barLabelToday: themeColors.primary,
+  barLabelDefault: themeColors.textSecondary,
+  recommendationsBackground: themeColors.cardBackground,
+  recommendationItemBg: isDark ? 'rgba(148,163,184,0.15)' : '#F8F9FF',
+  recommendationBorder: isDark ? 'rgba(148,163,184,0.25)' : '#E0E7FF',
+  highPriorityBg: isDark ? 'rgba(245,158,11,0.18)' : '#FEF3C7',
+  highPriorityBorder: '#F59E0B',
+  modalOverlayBg: 'rgba(0,0,0,0.5)',
+  modalContentBg: themeColors.cardBackground,
+  modalInputBg: isDark ? '#1f1f33' : '#fff',
+  modalInputBorder: themeColors.border,
+  modalInputText: themeColors.textPrimary,
+  modalButtonBg: themeColors.primary,
+  modalCancel: themeColors.primary,
+  divider: themeColors.border,
+  bestDayQuote: themeColors.textMuted,
+  shadow: themeColors.shadow,
+});
+
+const createStyles = (palette, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: palette.background,
   },
   headerContainer: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    backgroundColor: palette.background,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.border,
   },
   header: {
     minHeight: 65,
@@ -1111,7 +1130,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: getResponsiveFontSize(20),
     fontWeight: '600',
-    color: '#000',
+    color: palette.textPrimary,
   },
   placeholder: {
     width: 34,
@@ -1126,27 +1145,26 @@ const styles = StyleSheet.create({
     marginTop: 30,
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#111827',
+    color: palette.textPrimary,
   },
   subtitle: {
-    color: '#6b7280',
+    color: palette.textSecondary,
     marginBottom: 16,
   },
   progressBox: {
-    backgroundColor: '#fff',
+    backgroundColor: palette.cardBackground,
     padding: 16,
     borderRadius: 24,
     marginBottom: 16,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     elevation: 2,
   },
   waterContainer: {
     marginTop: 20,
     width: 280,
     height: 420,
-    // Remove the white background - this was blocking the glass effect
-    backgroundColor: '#E8E8E8', // Changed from rgba(255, 255, 255, 0.1)
+    backgroundColor: palette.glassBackground,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     borderTopLeftRadius: 8,
@@ -1157,164 +1175,139 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignSelf: 'center',
     marginBottom: 16,
-    // Enhanced glass morphism effects
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    shadowColor: '#000',
+    borderColor: palette.glassBorder,
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 20,
     elevation: 10,
   },
-  
-  // Add a new glass background layer
   glassBackground: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(232, 11, 11, 0.05)', // Very subtle white tint
+    backgroundColor: palette.glassBackground,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     zIndex: 0,
   },
-  
-  // Enhanced glass rim
   glassRim: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 12, // Increased height
-    backgroundColor: 'rgba(255, 255, 255, 0.4)', // More visible
+    height: 12,
+    backgroundColor: palette.glassRim,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     zIndex: 3,
-    // Add inner shadow effect
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  
-  // Enhanced glass highlight
   glassHighlight: {
     position: 'absolute',
     top: 0,
-    left: 8, // Slight offset from edge
-    width: 24, // Wider highlight
+    left: 8,
+    width: 24,
     height: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)', // More visible
+    backgroundColor: palette.glassHighlight,
     borderTopLeftRadius: 6,
     borderBottomLeftRadius: 20,
     zIndex: 2,
   },
-  
-  // Add a second highlight on the right side for more realism
   glassHighlightRight: {
     position: 'absolute',
     top: 0,
     right: 8,
     width: 12,
     height: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: palette.glassHighlight,
     borderTopRightRadius: 6,
     borderBottomRightRadius: 20,
     zIndex: 2,
   },
-  
   waterFill: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: '#8A63F7',
-    opacity: 0.9, // Slightly more opaque
+    opacity: 0.9,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     zIndex: 1,
-    // Enhanced water effect
     shadowColor: '#00D4FF',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 4,
   },
-  
-  // Enhanced water surface
   waterSurface: {
     position: 'absolute',
     left: 0,
     right: 0,
-    height: 6, // Slightly thicker surface
-    backgroundColor: 'rgba(255, 255, 255, 0.6)', // More visible
+    height: 6,
+    backgroundColor: palette.waterSurface,
     borderRadius: 3,
     zIndex: 2,
-    // Add shimmer effect
     shadowColor: '#fff',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.8,
     shadowRadius: 2,
   },
   waterTextContainer: {
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  justifyContent: 'center',
-  alignItems: 'center',
-  paddingHorizontal: 10,
-  paddingBottom: 16,
-  zIndex: 2,
-  // NO background at all!
-},
-
-// Also update your text styles to have better contrast against the glass:
-
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingBottom: 16,
+    zIndex: 2,
+  },
   waterAmount: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff', // White text for visibility against purple water
+    color: '#ffffff',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-
-waterGoal: {
-  fontSize: 14,
-  color: '#ffffff', // White text for visibility against purple water
-  textShadowColor: 'rgba(0, 0, 0, 0.5)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 2,
-},
-
-hydrated: {
-  fontSize: 16,
-  fontWeight: '600',
-  color: '#ffffff', // White text for visibility against purple water
-  marginVertical: 4,
-  textShadowColor: 'rgba(0, 0, 0, 0.5)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 2,
-},
-
-// Optional: Add a subtle backdrop for the text area only (not the whole container)
-// You can add this as a separate view behind the text if needed:
-textBackdrop: {
-  position: 'absolute',
-  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  borderRadius: 12,
-  padding: 8,
-  backdropFilter: 'blur(10px)', // Note: This might not work in React Native
-},
+  waterGoal: {
+    fontSize: 14,
+    color: '#ffffff',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  hydrated: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginVertical: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  textBackdrop: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 8,
+  },
   goalAchieved: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#10b981',
+    color: palette.accentGreen,
     marginTop: 4,
   },
   buttonRowInsideFill: {
@@ -1326,31 +1319,28 @@ textBackdrop: {
   addButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)', // More opaque white background
+    backgroundColor: palette.addButtonBg,
     borderRadius: 999,
     borderWidth: 2,
-    borderColor: 'rgba(124, 58, 237, 0.3)', // Purple border for better contrast
-    shadowColor: '#000',
+    borderColor: palette.addButtonBorder,
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
   addButtonText: {
-    color: '#7c3aed',
+    color: palette.addButtonText,
     fontWeight: 'bold',
     fontSize: 14,
-    textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: palette.cardBackground,
     borderRadius: 20,
     padding: 16,
     marginTop: 10,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     elevation: 2,
     flex: 1,
     justifyContent: 'space-evenly',
@@ -1364,42 +1354,31 @@ textBackdrop: {
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: '#111827',
+    color: palette.textPrimary,
   },
   iconCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#ede9fe',
+    backgroundColor: palette.iconCircleBg,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  toggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-  },
-  toggleKnob: {
-    width: 20,
-    height: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    position: 'absolute',
-    top: 2,
+  bestDayIcon: {
+    backgroundColor: palette.bestDayIconBg,
   },
   weeklyCard: {
-    backgroundColor: '#fff',
+    backgroundColor: palette.cardBackground,
     padding: 16,
     borderRadius: 20,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     elevation: 2,
   },
   weekTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: palette.textPrimary,
     marginBottom: 12,
   },
   barChart: {
@@ -1415,9 +1394,13 @@ textBackdrop: {
     width: 30,
     borderRadius: 15,
   },
+  barDayLabel: {
+    fontSize: 10,
+    marginTop: 6,
+  },
   dayLabel: {
     fontSize: 10,
-    color: '#6b7280',
+    color: palette.textSecondary,
     marginTop: 6,
   },
   cardRow1: {
@@ -1429,25 +1412,25 @@ textBackdrop: {
   bestDayTitle: {
     fontWeight: '600',
     fontSize: 20,
-    color: '#111827',
+    color: palette.textPrimary,
   },
   bestDayText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: palette.textSecondary,
   },
   quote: {
     fontSize: 13,
-    color: '#9ca3af',
+    color: palette.bestDayQuote,
     marginTop: 2,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: palette.modalOverlayBg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: palette.modalContentBg,
     borderRadius: 20,
     padding: 24,
     width: 300,
@@ -1457,19 +1440,22 @@ textBackdrop: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
+    color: palette.textPrimary,
   },
   modalInput: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: palette.modalInputBorder,
     borderRadius: 10,
     padding: 10,
     fontSize: 16,
     marginBottom: 16,
     textAlign: 'center',
+    color: palette.modalInputText,
+    backgroundColor: palette.modalInputBg,
   },
   modalButton: {
-    backgroundColor: '#9333ea',
+    backgroundColor: palette.modalButtonBg,
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -1481,25 +1467,23 @@ textBackdrop: {
     fontSize: 16,
   },
   modalCancel: {
-    color: '#9333ea',
+    color: palette.modalCancel,
     marginTop: 8,
     fontSize: 15,
   },
   rowDivider: {
     height: 1,
-    backgroundColor: '#f1f1f1',
+    backgroundColor: palette.divider,
     marginLeft: 56,
     marginRight: 0,
   },
-  
-  // Context-Aware Recommendations Styles
   recommendationsCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.recommendationsBackground,
     borderRadius: 16,
     padding: 20,
     marginHorizontal: 16,
     marginVertical: 8,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -1508,22 +1492,22 @@ textBackdrop: {
   recommendationsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#11181C',
+    color: palette.textPrimary,
     marginBottom: 16,
   },
   recommendationItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#F8F9FF',
+    backgroundColor: palette.recommendationItemBg,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E0E7FF',
+    borderColor: palette.recommendationBorder,
   },
   highPriorityRecommendation: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
+    backgroundColor: palette.highPriorityBg,
+    borderColor: palette.highPriorityBorder,
   },
   recommendationIcon: {
     fontSize: 24,
@@ -1536,13 +1520,13 @@ textBackdrop: {
   recommendationMessage: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: palette.textPrimary,
     marginBottom: 4,
     lineHeight: 20,
   },
   recommendationAction: {
     fontSize: 13,
-    color: '#6B7280',
+    color: palette.textSecondary,
     fontStyle: 'italic',
   },
 });

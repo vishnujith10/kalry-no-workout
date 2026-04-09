@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Animated, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 import useTodaySteps from '../utils/useTodaySteps';
 
@@ -16,6 +17,9 @@ const globalStepCache = {
 };
 
 const StepTrackerScreen = ({ navigation }) => {
+  const { colors, isDark } = useTheme();
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
   const [userId, setUserId] = useState(null);
   const [goal, setGoal] = useState(10000);
@@ -627,7 +631,11 @@ const StepTrackerScreen = ({ navigation }) => {
 
     const backgroundColor = animatedColor.interpolate({
       inputRange: [0, 1, 2],
-      outputRange: ['#e5e7eb', '#7B61FF', '#10b981']
+      outputRange: [
+        palette.progressBarBackground, 
+        palette.primary, 
+        palette.success
+      ]
     });
 
     return (
@@ -646,7 +654,7 @@ const StepTrackerScreen = ({ navigation }) => {
           styles.dayLabel, 
           { 
             fontWeight: data.isToday ? 'bold' : 'normal',
-            color: data.isToday ? '#7B61FF' : '#6b7280'
+            color: data.isToday ? palette.primary : palette.textMuted
           }
         ]}>
           {data.day}
@@ -660,15 +668,15 @@ const StepTrackerScreen = ({ navigation }) => {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         {/* Header - FIXED ICON NAME */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={24} color="#1F2937" />
+            <Ionicons name="chevron-back" size={24} color={palette.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Step Counter</Text>
           <TouchableOpacity onPress={handleDeleteTodayData}>
-            <Ionicons name="refresh" size={24} color="#7B61FF" />
+            <Ionicons name="refresh" size={24} color={palette.primary} />
           </TouchableOpacity>
         </View>
 
@@ -680,7 +688,7 @@ const StepTrackerScreen = ({ navigation }) => {
               style={styles.addStepsButton}
               onPress={() => setShowManualStepModal(true)}
             >
-              <Ionicons name="add" size={24} color="#7B61FF" />
+              <Ionicons name="add" size={24} color={palette.primary} />
             </TouchableOpacity>
             <View style={styles.progressSection}>
               <View style={styles.circularProgress}>
@@ -875,10 +883,24 @@ const StepTrackerScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (themeColors, isDark) => ({
+  primary: themeColors.primary,
+  background: themeColors.background,
+  cardBackground: themeColors.cardBackground,
+  textPrimary: themeColors.textPrimary,
+  textSecondary: themeColors.textSecondary,
+  textMuted: themeColors.textMuted,
+  border: themeColors.border,
+  shadow: themeColors.shadow || '#000',
+  success: '#10b981',
+  iconBackground: isDark ? '#2A2A3E' : '#F3F4F6',
+  progressBarBackground: isDark ? '#2A2A3E' : '#E5E7EB',
+});
+
+const createStyles = (palette, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: palette.background,
   },
   header: {
     flexDirection: 'row',
@@ -886,12 +908,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: palette.background,
+    borderBottomWidth: isDark ? 1 : 0,
+    borderBottomColor: palette.border,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: palette.textPrimary,
     fontFamily: 'Lexend-Bold',
   },
   scrollContent: {
@@ -899,16 +923,18 @@ const styles = StyleSheet.create({
     paddingBottom: 40, // Will be adjusted dynamically via insets
   },
   overviewCard: {
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 24,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 8,
     elevation: 3,
     position: 'relative',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   addStepsButton: {
     position: 'absolute',
@@ -917,11 +943,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: palette.iconBackground,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: palette.border,
     zIndex: 10,
   },
   progressSection: {
@@ -940,7 +966,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 8,
-    borderColor: '#7B61FF',
+    borderColor: palette.primary,
     position: 'relative',
   },
   progressArc: {
@@ -952,9 +978,9 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 8,
     borderColor: 'transparent',
-    borderTopColor: '#7B61FF',
-    borderRightColor: '#7B61FF',
-    borderBottomColor: '#7B61FF',
+    borderTopColor: palette.primary,
+    borderRightColor: palette.primary,
+    borderBottomColor: palette.primary,
   },
   progressContent: {
     position: 'absolute',
@@ -968,13 +994,13 @@ const styles = StyleSheet.create({
   stepsNumber: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: palette.textPrimary,
     fontFamily: 'Lexend-Bold',
     textAlign: 'center',
   },
   stepsLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: palette.textMuted,
     fontFamily: 'Manrope-Regular',
     textAlign: 'center',
   },
@@ -984,25 +1010,25 @@ const styles = StyleSheet.create({
   overviewTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: palette.textPrimary,
     marginBottom: 8,
     fontFamily: 'Lexend-Bold',
   },
   progressText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: palette.textSecondary,
     marginBottom: 12,
     fontFamily: 'Manrope-Regular',
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: palette.progressBarBackground,
     borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.primary,
     borderRadius: 4,
   },
   quickStats: {
@@ -1010,7 +1036,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: palette.border,
   },
   statItem: {
     alignItems: 'center',
@@ -1018,40 +1044,42 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: palette.textPrimary,
     fontFamily: 'Lexend-Bold',
   },
   statLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: palette.textMuted,
     marginTop: 4,
     fontFamily: 'Manrope-Regular',
   },
   goalCard: {
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 8,
     elevation: 3,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: palette.textPrimary,
     marginBottom: 12,
     fontFamily: 'Lexend-Bold',
   },
   goalCurrentText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: palette.textSecondary,
     marginBottom: 20,
     fontFamily: 'Manrope-Regular',
   },
   setGoalButton: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1071,18 +1099,20 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     borderRadius: 20,
     padding: 24,
     width: '100%',
     maxWidth: 340,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 20,
     textAlign: 'center',
-    color: '#1F2937',
+    color: palette.textPrimary,
     fontFamily: 'Lexend-Bold',
   },
   goalOptions: {
@@ -1092,7 +1122,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   goalOption: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: isDark ? '#2A2A3E' : '#F3F4F6',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 12,
@@ -1100,14 +1130,17 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     minWidth: 60,
     alignItems: 'center',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   goalOptionSelected: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
   },
   goalOptionText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: palette.textPrimary,
     fontFamily: 'Lexend-Medium',
   },
   goalOptionTextSelected: {
@@ -1115,12 +1148,14 @@ const styles = StyleSheet.create({
   },
   customGoalInput: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: palette.border,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     marginBottom: 24,
     fontFamily: 'Manrope-Regular',
+    color: palette.textPrimary,
+    backgroundColor: isDark ? '#1E1F2C' : '#FFFFFF',
   },
   modalActions: {
     flexDirection: 'row',
@@ -1134,13 +1169,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 6,
   },
   cancelButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: isDark ? '#2A2A3E' : '#F3F4F6',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   saveButton: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.primary,
   },
   cancelButtonText: {
-    color: '#374151',
+    color: palette.textPrimary,
     fontSize: 16,
     fontWeight: '500',
     fontFamily: 'Lexend-Medium',
@@ -1152,20 +1189,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend-Medium',
   },
   weeklyCard: {
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 8,
     elevation: 3,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   weekTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: palette.textPrimary,
     marginBottom: 12,
     fontFamily: 'Lexend-Bold',
   },
@@ -1189,20 +1228,22 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: palette.textMuted,
     fontFamily: 'Manrope-Regular',
     marginTop: 4,
   },
   historyCard: {
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 8,
     elevation: 3,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   historyRow: {
     flexDirection: 'row',
@@ -1210,21 +1251,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: palette.border,
   },
   historyLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: palette.textSecondary,
     fontFamily: 'Manrope-Regular',
   },
   historyValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: palette.textPrimary,
     fontFamily: 'Lexend-SemiBold',
   },
   consistencyValue: {
-    color: '#10b981',
+    color: palette.success,
   },
 });
 

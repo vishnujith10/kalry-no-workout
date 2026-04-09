@@ -2,7 +2,7 @@ import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { makeRedirectUri } from 'expo-auth-session';
 import { StatusBar } from 'expo-status-bar';
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,22 +15,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 import { handleGoogleSignIn, handleGoogleSignOut, initializeGoogleSignIn } from './googleSignInService';
-
-const PRIMARY = '#000000';
-const PRIMARY_PURPLE = '#A182F9';
-const ORANGE = '#ff8800';
-const BACKGROUND = '#ffffff';
-const GRAY_MEDIUM = '#e0e0e0';
-const GRAY_LIGHT = '#f5f5f5';
 
 const useProxy = true;
 const redirectUri = makeRedirectUri({ useProxy });
 
 const LoginScreen = ({ navigation }) => {
-  const { onboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -202,7 +197,7 @@ const LoginScreen = ({ navigation }) => {
 
   const handleAppleLogin = async () => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'apple',
         options: {
           redirectTo: redirectUri,
@@ -217,7 +212,7 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <TouchableOpacity
@@ -225,7 +220,7 @@ const LoginScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Welcome')}
             disabled={loading}
           >
-            <Ionicons name="chevron-back" size={28} color={PRIMARY} />
+            <Ionicons name="chevron-back" size={28} color={palette.textPrimary} />
           </TouchableOpacity>
         </View>
         <View style={styles.content}>
@@ -235,10 +230,11 @@ const LoginScreen = ({ navigation }) => {
           </Text>
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="email" size={24} color={GRAY_MEDIUM} style={styles.inputIcon} />
+              <MaterialIcons name="email" size={24} color={palette.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Email"
+                placeholderTextColor={palette.placeholder}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -247,10 +243,11 @@ const LoginScreen = ({ navigation }) => {
               />
             </View>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="lock" size={24} color={GRAY_MEDIUM} style={styles.inputIcon} />
+              <MaterialIcons name="lock" size={24} color={palette.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Password"
+                placeholderTextColor={palette.placeholder}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -275,24 +272,26 @@ const LoginScreen = ({ navigation }) => {
               <View style={styles.dividerLine} />
             </View>
             <TouchableOpacity
-              style={[styles.socialButton, styles.appleButton, loading && styles.buttonDisabled]}
+              style={[styles.socialButton, styles.button, loading && styles.buttonDisabled]}
               onPress={handleAppleLogin}
               disabled={loading}
             >
-              <FontAwesome5 name="apple" size={20} color={BACKGROUND} />
+              <FontAwesome5 name="apple" size={20} color={palette.buttonText} />
               <Text style={styles.socialButtonText}>CONNECT WITH APPLE</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.socialButton, styles.googleButton, loading && styles.buttonDisabled]}
+              style={[styles.socialButton, styles.button, loading && styles.buttonDisabled]}
               onPress={onGoogleSignInPress}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator size="small" color={BACKGROUND} />
+                <ActivityIndicator size="small" color={palette.buttonText} />
               ) : (
                 <>
-                  <FontAwesome5 name="google" size={20} color="#FF9800" />
+                  <View style={styles.googleIconBorder}>
+                    <FontAwesome5 name="google" size={20} color="#FF9800" />
+                  </View>
                   <Text style={styles.socialButtonText}>CONNECT WITH GOOGLE</Text>
                 </>
               )}
@@ -311,10 +310,24 @@ const LoginScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (themeColors, isDark) => ({
+  background: themeColors.background,
+  textPrimary: themeColors.textPrimary,
+  textSecondary: themeColors.textSecondary,
+  border: themeColors.border,
+  primary: themeColors.primary,
+  cardBackground: themeColors.cardBackground,
+  inputBackground: isDark ? themeColors.cardBackground : '#F5F5F5',
+  placeholder: isDark ? '#A0AEC0' : '#6B7280',
+  buttonText: themeColors.cardBackground,
+  googleBorder: isDark ? themeColors.textPrimary : '#000000',
+  backButtonBg: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+});
+
+const createStyles = (palette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BACKGROUND,
+    backgroundColor: palette.background,
   },
   header: {
     padding: 16,
@@ -323,7 +336,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: palette.backButtonBg,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -334,12 +347,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: PRIMARY,
+    color: palette.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: GRAY_MEDIUM,
+    color: palette.textSecondary,
     marginBottom: 32,
   },
   form: {
@@ -348,10 +361,12 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: GRAY_LIGHT,
+    backgroundColor: palette.inputBackground,
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
   },
   inputIcon: {
     marginRight: 12,
@@ -360,30 +375,31 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 56,
     fontSize: 16,
+    color: palette.textPrimary,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
     marginBottom: 24,
   },
   forgotPasswordText: {
-    color: PRIMARY_PURPLE,
+    color: palette.primary,
     fontSize: 14,
   },
   button: {
-    backgroundColor: PRIMARY_PURPLE,
+    backgroundColor: palette.primary,
     height: 56,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
   buttonText: {
-    color: BACKGROUND,
+    color: palette.buttonText,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   divider: {
     flexDirection: 'row',
@@ -393,11 +409,11 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: GRAY_MEDIUM,
+    backgroundColor: palette.border,
   },
   dividerText: {
     marginHorizontal: 16,
-    color: GRAY_MEDIUM,
+    color: palette.textSecondary,
   },
   socialButton: {
     flexDirection: 'row',
@@ -407,17 +423,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  appleButton: {
-    backgroundColor: PRIMARY_PURPLE,
-  },
-  googleButton: {
-    backgroundColor: PRIMARY_PURPLE,
-  },
   socialButtonText: {
-    color: BACKGROUND,
+    color: palette.buttonText,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 12,
+  },
+  googleIconBorder: {
+    borderWidth: 1,
+    borderColor: palette.googleBorder,
+    borderRadius: 12,
+    padding: 4,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   signupContainer: {
     flexDirection: 'row',
@@ -425,10 +445,10 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   signupText: {
-    color: GRAY_MEDIUM,
+    color: palette.textSecondary,
   },
   signupLink: {
-    color: PRIMARY_PURPLE,
+    color: palette.primary,
     fontWeight: 'bold',
   },
 });

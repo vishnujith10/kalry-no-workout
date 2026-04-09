@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  BackHandler,
   Modal,
   Platform,
   ScrollView,
@@ -18,7 +19,9 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
+import { clearAllGlobalCaches } from '../utils/clearAllCaches';
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -29,22 +32,8 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const COLORS = {
-  primary: '#7C3AED',
-  primaryLight: '#A084E8',
-  background: '#E8E9F0',
-  surface: '#FFFFFF',
-  text: '#181A20',
-  textSecondary: '#666666',
-  textMuted: '#999999',
-  border: '#E5E7EB',
-  success: '#10B981',
-  error: '#EF4444',
-  warning: '#F59E0B',
-};
-
 // Global cache for AppSettingsScreen (same pattern as StepTrackerScreen)
-const globalSettingsCache = {
+export const globalSettingsCache = {
   lastFetchTime: 0,
   CACHE_DURATION: 300000, // 5 minutes
   cachedData: null,
@@ -52,6 +41,9 @@ const globalSettingsCache = {
 
 const AppSettingsScreen = () => {
   const navigation = useNavigation();
+  const { colors, isDark } = useTheme();
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   
   // Helper functions for default times (moved outside to prevent re-creation)
   const getDefaultMealTime = () => {
@@ -119,6 +111,9 @@ const AppSettingsScreen = () => {
   // Track if this is initial mount (to prevent scheduling on mount)
   const isInitialMount = useRef(true);
   
+  // Scheduling lock to prevent concurrent scheduling of the same notification type
+  const schedulingLockRef = useRef({ meal: false, workout: false, sleep: false });
+  
   // AI Insights State - Initialize from cache
   const [aiInsights, setAiInsights] = useState(() => getCachedOrDefault('aiInsights', true));
   const [insightFrequency, setInsightFrequency] = useState(() => getCachedOrDefault('insightFrequency', 'Weekly'));
@@ -154,38 +149,58 @@ const AppSettingsScreen = () => {
         // Cache is valid, restore from cache without fetching
         const cached = globalSettingsCache.cachedData;
         
-        // Only update state if values actually changed (prevent unnecessary re-renders)
-        if (dailyReminders !== cached.dailyReminders) setDailyReminders(cached.dailyReminders);
-        if (mealReminders !== cached.mealReminders) setMealReminders(cached.mealReminders);
-        if (workoutReminders !== cached.workoutReminders) setWorkoutReminders(cached.workoutReminders);
-        if (sleepReminders !== cached.sleepReminders) setSleepReminders(cached.sleepReminders);
+        // Use functional updates to avoid dependency on current state values
+        setDailyReminders(prev => prev !== cached.dailyReminders ? cached.dailyReminders : prev);
+        setMealReminders(prev => prev !== cached.mealReminders ? cached.mealReminders : prev);
+        setWorkoutReminders(prev => prev !== cached.workoutReminders ? cached.workoutReminders : prev);
+        setSleepReminders(prev => prev !== cached.sleepReminders ? cached.sleepReminders : prev);
         
-        if (cached.mealReminderTime && mealReminderTime.toTimeString().slice(0, 5) !== cached.mealReminderTime) {
+        if (cached.mealReminderTime) {
           const [hours, minutes] = cached.mealReminderTime.split(':');
-          const mealTime = new Date();
-          mealTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          setMealReminderTime(mealTime);
+          setMealReminderTime(prev => {
+            const prevTimeStr = prev.toTimeString().slice(0, 5);
+            if (prevTimeStr !== cached.mealReminderTime) {
+              const mealTime = new Date();
+              mealTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              return mealTime;
+            }
+            return prev;
+          });
         }
-        if (cached.workoutReminderTime && workoutReminderTime.toTimeString().slice(0, 5) !== cached.workoutReminderTime) {
+        if (cached.workoutReminderTime) {
           const [hours, minutes] = cached.workoutReminderTime.split(':');
-          const workoutTime = new Date();
-          workoutTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          setWorkoutReminderTime(workoutTime);
+          setWorkoutReminderTime(prev => {
+            const prevTimeStr = prev.toTimeString().slice(0, 5);
+            if (prevTimeStr !== cached.workoutReminderTime) {
+              const workoutTime = new Date();
+              workoutTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              return workoutTime;
+            }
+            return prev;
+          });
         }
-        if (cached.sleepReminderTime && sleepReminderTime.toTimeString().slice(0, 5) !== cached.sleepReminderTime) {
+        if (cached.sleepReminderTime) {
           const [hours, minutes] = cached.sleepReminderTime.split(':');
-          const sleepTime = new Date();
-          sleepTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          setSleepReminderTime(sleepTime);
+          setSleepReminderTime(prev => {
+            const prevTimeStr = prev.toTimeString().slice(0, 5);
+            if (prevTimeStr !== cached.sleepReminderTime) {
+              const sleepTime = new Date();
+              sleepTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              return sleepTime;
+            }
+            return prev;
+          });
         }
         
-        if (aiInsights !== cached.aiInsights) setAiInsights(cached.aiInsights);
-        if (insightFrequency !== cached.insightFrequency) setInsightFrequency(cached.insightFrequency);
-        if (JSON.stringify(focusAreas) !== JSON.stringify(cached.focusAreas)) {
-          setFocusAreas(cached.focusAreas);
-        }
-        if (anonymousDataSharing !== cached.anonymousDataSharing) setAnonymousDataSharing(cached.anonymousDataSharing);
-        if (language !== cached.language) setLanguage(cached.language);
+        setAiInsights(prev => prev !== cached.aiInsights ? cached.aiInsights : prev);
+        setInsightFrequency(prev => prev !== cached.insightFrequency ? cached.insightFrequency : prev);
+        setFocusAreas(prev => {
+          const prevStr = JSON.stringify(prev);
+          const cachedStr = JSON.stringify(cached.focusAreas);
+          return prevStr !== cachedStr ? cached.focusAreas : prev;
+        });
+        setAnonymousDataSharing(prev => prev !== cached.anonymousDataSharing ? cached.anonymousDataSharing : prev);
+        setLanguage(prev => prev !== cached.language ? cached.language : prev);
         
         return; // Skip database fetch
       }
@@ -225,71 +240,69 @@ const AppSettingsScreen = () => {
         };
         globalSettingsCache.lastFetchTime = now;
 
-        // Only update state if values changed (prevent unnecessary re-renders)
-        if (dailyReminders !== globalSettingsCache.cachedData.dailyReminders) {
-          setDailyReminders(globalSettingsCache.cachedData.dailyReminders);
-        }
-        if (mealReminders !== globalSettingsCache.cachedData.mealReminders) {
-          setMealReminders(globalSettingsCache.cachedData.mealReminders);
-        }
-        if (workoutReminders !== globalSettingsCache.cachedData.workoutReminders) {
-          setWorkoutReminders(globalSettingsCache.cachedData.workoutReminders);
-        }
-        if (sleepReminders !== globalSettingsCache.cachedData.sleepReminders) {
-          setSleepReminders(globalSettingsCache.cachedData.sleepReminders);
-        }
+        // Use functional updates to avoid dependency on current state values
+        setDailyReminders(prev => prev !== globalSettingsCache.cachedData.dailyReminders ? globalSettingsCache.cachedData.dailyReminders : prev);
+        setMealReminders(prev => prev !== globalSettingsCache.cachedData.mealReminders ? globalSettingsCache.cachedData.mealReminders : prev);
+        setWorkoutReminders(prev => prev !== globalSettingsCache.cachedData.workoutReminders ? globalSettingsCache.cachedData.workoutReminders : prev);
+        setSleepReminders(prev => prev !== globalSettingsCache.cachedData.sleepReminders ? globalSettingsCache.cachedData.sleepReminders : prev);
 
-        // Load reminder times
+        // Load reminder times using functional updates
         if (data.meal_reminder_time) {
           const [hours, minutes] = data.meal_reminder_time.split(':');
-          const mealTime = new Date();
-          mealTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          if (mealReminderTime.toTimeString().slice(0, 5) !== data.meal_reminder_time) {
-            setMealReminderTime(mealTime);
-          }
+          setMealReminderTime(prev => {
+            const prevTimeStr = prev.toTimeString().slice(0, 5);
+            if (prevTimeStr !== data.meal_reminder_time) {
+              const mealTime = new Date();
+              mealTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              return mealTime;
+            }
+            return prev;
+          });
         }
         if (data.workout_reminder_time) {
           const [hours, minutes] = data.workout_reminder_time.split(':');
-          const workoutTime = new Date();
-          workoutTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          if (workoutReminderTime.toTimeString().slice(0, 5) !== data.workout_reminder_time) {
-            setWorkoutReminderTime(workoutTime);
-          }
+          setWorkoutReminderTime(prev => {
+            const prevTimeStr = prev.toTimeString().slice(0, 5);
+            if (prevTimeStr !== data.workout_reminder_time) {
+              const workoutTime = new Date();
+              workoutTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              return workoutTime;
+            }
+            return prev;
+          });
         }
         if (data.sleep_reminder_time) {
           const [hours, minutes] = data.sleep_reminder_time.split(':');
-          const sleepTime = new Date();
-          sleepTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          if (sleepReminderTime.toTimeString().slice(0, 5) !== data.sleep_reminder_time) {
-            setSleepReminderTime(sleepTime);
-          }
+          setSleepReminderTime(prev => {
+            const prevTimeStr = prev.toTimeString().slice(0, 5);
+            if (prevTimeStr !== data.sleep_reminder_time) {
+              const sleepTime = new Date();
+              sleepTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              return sleepTime;
+            }
+            return prev;
+          });
         }
 
-        // Load AI Insights settings
-        if (aiInsights !== globalSettingsCache.cachedData.aiInsights) {
-          setAiInsights(globalSettingsCache.cachedData.aiInsights);
-        }
-        if (insightFrequency !== globalSettingsCache.cachedData.insightFrequency) {
-          setInsightFrequency(globalSettingsCache.cachedData.insightFrequency);
-        }
-        if (JSON.stringify(focusAreas) !== JSON.stringify(globalSettingsCache.cachedData.focusAreas)) {
-          setFocusAreas(globalSettingsCache.cachedData.focusAreas);
-        }
+        // Load AI Insights settings using functional updates
+        setAiInsights(prev => prev !== globalSettingsCache.cachedData.aiInsights ? globalSettingsCache.cachedData.aiInsights : prev);
+        setInsightFrequency(prev => prev !== globalSettingsCache.cachedData.insightFrequency ? globalSettingsCache.cachedData.insightFrequency : prev);
+        setFocusAreas(prev => {
+          const prevStr = JSON.stringify(prev);
+          const cachedStr = JSON.stringify(globalSettingsCache.cachedData.focusAreas);
+          return prevStr !== cachedStr ? globalSettingsCache.cachedData.focusAreas : prev;
+        });
 
-        // Load Privacy & Data settings
-        if (anonymousDataSharing !== globalSettingsCache.cachedData.anonymousDataSharing) {
-          setAnonymousDataSharing(globalSettingsCache.cachedData.anonymousDataSharing);
-        }
+        // Load Privacy & Data settings using functional updates
+        setAnonymousDataSharing(prev => prev !== globalSettingsCache.cachedData.anonymousDataSharing ? globalSettingsCache.cachedData.anonymousDataSharing : prev);
 
-        // Load General settings
-        if (language !== globalSettingsCache.cachedData.language) {
-          setLanguage(globalSettingsCache.cachedData.language);
-        }
+        // Load General settings using functional updates
+        setLanguage(prev => prev !== globalSettingsCache.cachedData.language ? globalSettingsCache.cachedData.language : prev);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
     }
-  }, [dailyReminders, mealReminders, workoutReminders, sleepReminders, mealReminderTime, workoutReminderTime, sleepReminderTime, aiInsights, insightFrequency, focusAreas, anonymousDataSharing, language]);
+  }, []); // Empty deps - loadSettings should only run on mount, not when state changes
 
   // Save settings to database
   const saveSettings = useCallback(async () => {
@@ -333,7 +346,7 @@ const AppSettingsScreen = () => {
       if (error) {
         console.error('Error saving settings:', error);
       } else {
-        // Update cache after successful save
+        // Update cache immediately after successful save to prevent stale data
         globalSettingsCache.cachedData = {
           dailyReminders,
           mealReminders,
@@ -349,6 +362,7 @@ const AppSettingsScreen = () => {
           language,
         };
         globalSettingsCache.lastFetchTime = Date.now();
+        console.log('✅ Cache updated with sleep time:', sleepTimeStr);
         console.log('✅ Settings saved successfully');
       }
     } catch (error) {
@@ -413,6 +427,19 @@ const AppSettingsScreen = () => {
     loadSettings();
   }, [loadSettings]);
 
+  // Handle hardware back button - go back normally
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        navigation.goBack();
+        return true; // Prevent default back behavior
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => backHandler.remove();
+    }, [navigation])
+  );
+
   // Notification messages
   const getNotificationMessages = (type) => {
     const messages = {
@@ -440,27 +467,60 @@ const AppSettingsScreen = () => {
     return options[Math.floor(Math.random() * options.length)];
   };
 
-  // Cancel notification
+  // Cancel notification - Cancel ALL notifications of this type, not just the one in ref
   const cancelNotification = useCallback(async (type) => {
     try {
-      const notificationId = notificationIdsRef.current[type];
-      if (notificationId) {
-        await Notifications.cancelScheduledNotificationAsync(notificationId);
-        notificationIdsRef.current[type] = null;
-        console.log(`✅ Cancelled ${type} notification`);
+      // Get the expected title for this notification type
+      const expectedTitle = type === 'meal' ? 'Meal Reminder' : type === 'workout' ? 'Workout Reminder' : 'Sleep Reminder';
+      
+      // Get all scheduled notifications
+      const allScheduled = await Notifications.getAllScheduledNotificationsAsync();
+      
+      // Cancel all notifications that match this type (by title)
+      const matchingNotifications = allScheduled.filter(
+        notif => notif.content.title === expectedTitle
+      );
+      
+      // Cancel each matching notification
+      for (const notif of matchingNotifications) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+          console.log(`✅ Cancelled ${type} notification (ID: ${notif.identifier})`);
+        } catch (err) {
+          console.error(`Error cancelling notification ${notif.identifier}:`, err);
+        }
+      }
+      
+      // Clear the ref
+      notificationIdsRef.current[type] = null;
+      
+      if (matchingNotifications.length > 0) {
+        console.log(`✅ Cancelled ${matchingNotifications.length} ${type} notification(s)`);
       }
     } catch (error) {
       console.error(`Error cancelling ${type} notification:`, error);
     }
   }, []);
 
-  // Schedule daily recurring notification - FIXED to prevent immediate firing
+  // Schedule daily recurring notification - FIXED to prevent immediate firing and duplicates
   const scheduleNotification = useCallback(async (type, time, enabled) => {
+    // Prevent concurrent scheduling of the same notification type
+    if (schedulingLockRef.current[type]) {
+      console.log(`⏸️ ${type} notification scheduling already in progress, skipping duplicate`);
+      return;
+    }
+    
+    schedulingLockRef.current[type] = true;
+    
     try {
-      // Cancel existing notification first
+      // Cancel ALL existing notifications of this type first (prevents duplicates)
       await cancelNotification(type);
       
+      // Small delay to ensure cancellation completes before scheduling
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       if (!enabled) {
+        schedulingLockRef.current[type] = false;
         return;
       }
 
@@ -471,6 +531,8 @@ const AppSettingsScreen = () => {
       const now = new Date();
       const scheduledTime = new Date();
       scheduledTime.setHours(hours, minutes, 0, 0);
+      scheduledTime.setSeconds(0);
+      scheduledTime.setMilliseconds(0);
       
       // If the time has already passed today, schedule for tomorrow
       if (scheduledTime.getTime() <= now.getTime()) {
@@ -483,10 +545,20 @@ const AppSettingsScreen = () => {
       
       console.log(`⏰ Scheduling ${type} notification in ${secondsUntilScheduled} seconds (${Math.floor(secondsUntilScheduled / 60)} minutes) at ${scheduledTime.toLocaleTimeString()}`);
       
+      // Double-check: Verify no duplicate notifications exist before scheduling
+      const allScheduled = await Notifications.getAllScheduledNotificationsAsync();
+      const expectedTitle = type === 'meal' ? 'Meal Reminder' : type === 'workout' ? 'Workout Reminder' : 'Sleep Reminder';
+      const existingCount = allScheduled.filter(n => n.content.title === expectedTitle).length;
+      
+      if (existingCount > 0) {
+        console.log(`⚠️ Found ${existingCount} existing ${type} notification(s), cancelling before scheduling new one`);
+        await cancelNotification(type);
+      }
+      
       // Use specific date/time trigger (most reliable)
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
-          title: type === 'meal' ? 'Meal Reminder' : type === 'workout' ? 'Workout Reminder' : 'Sleep Reminder',
+          title: expectedTitle,
           body: getNotificationMessages(type),
           sound: true,
           priority: Notifications.AndroidNotificationPriority.HIGH,
@@ -498,16 +570,37 @@ const AppSettingsScreen = () => {
       notificationIdsRef.current[type] = notificationId;
       console.log(`✅ Scheduled ${type} notification for ${scheduledTime.toLocaleString()} (ID: ${notificationId})`);
       
-      // Debug: Check all scheduled notifications
+      // Final verification: Check for duplicates and cancel extras
+      const allScheduledAfter = await Notifications.getAllScheduledNotificationsAsync();
+      const matchingAfter = allScheduledAfter.filter(n => n.content.title === expectedTitle);
+      const countAfter = matchingAfter.length;
+      
+      if (countAfter > 1) {
+        console.warn(`⚠️ WARNING: Found ${countAfter} ${type} notifications scheduled! Cancelling duplicates...`);
+        // Keep the one we just scheduled, cancel the rest
+        for (const notif of matchingAfter) {
+          if (notif.identifier !== notificationId) {
+            try {
+              await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+              console.log(`✅ Cancelled duplicate ${type} notification (ID: ${notif.identifier})`);
+            } catch (err) {
+              console.error(`Error cancelling duplicate notification:`, err);
+            }
+          }
+        }
+      }
+      
+      // Debug: Final count
       if (__DEV__) {
-        const allScheduled = await Notifications.getAllScheduledNotificationsAsync();
-        console.log('📅 Total scheduled notifications:', allScheduled.length);
-        allScheduled.forEach(notif => {
-          console.log(`  - ${notif.content.title}: ${JSON.stringify(notif.trigger)}`);
-        });
+        const finalCheck = await Notifications.getAllScheduledNotificationsAsync();
+        const finalCount = finalCheck.filter(n => n.content.title === expectedTitle).length;
+        console.log(`📅 Final count: ${finalCount} ${type} notification(s) scheduled`);
       }
     } catch (error) {
       console.error(`Error scheduling ${type} notification:`, error);
+    } finally {
+      // Always release the lock, even if there's an error
+      schedulingLockRef.current[type] = false;
     }
   }, [cancelNotification]);
 
@@ -520,7 +613,9 @@ const AppSettingsScreen = () => {
     };
   }, [cancelNotification]);
 
-  // Handle notification received (reschedule for next day)
+  // Handle notification received (reschedule for next day) - Prevent duplicate reschedules
+  const rescheduleLockRef = useRef({ meal: false, workout: false, sleep: false });
+  
   useEffect(() => {
     const subscription = Notifications.addNotificationReceivedListener(async (notification) => {
       console.log('📬 Notification received:', notification.request.content.title);
@@ -528,15 +623,41 @@ const AppSettingsScreen = () => {
       // Determine which type and reschedule for tomorrow
       const title = notification.request.content.title;
       
+      // Prevent duplicate reschedules if multiple notifications fire at once
       if (title?.includes('Meal') && mealReminders && dailyReminders) {
+        if (rescheduleLockRef.current.meal) {
+          console.log('⏸️ Meal notification reschedule already in progress, skipping duplicate');
+          return;
+        }
+        rescheduleLockRef.current.meal = true;
         console.log('🔄 Rescheduling meal notification for tomorrow');
         await scheduleNotification('meal', mealReminderTime, true);
+        // Release lock after a short delay
+        setTimeout(() => {
+          rescheduleLockRef.current.meal = false;
+        }, 2000);
       } else if (title?.includes('Workout') && workoutReminders && dailyReminders) {
+        if (rescheduleLockRef.current.workout) {
+          console.log('⏸️ Workout notification reschedule already in progress, skipping duplicate');
+          return;
+        }
+        rescheduleLockRef.current.workout = true;
         console.log('🔄 Rescheduling workout notification for tomorrow');
         await scheduleNotification('workout', workoutReminderTime, true);
+        setTimeout(() => {
+          rescheduleLockRef.current.workout = false;
+        }, 2000);
       } else if (title?.includes('Sleep') && sleepReminders && dailyReminders) {
+        if (rescheduleLockRef.current.sleep) {
+          console.log('⏸️ Sleep notification reschedule already in progress, skipping duplicate');
+          return;
+        }
+        rescheduleLockRef.current.sleep = true;
         console.log('🔄 Rescheduling sleep notification for tomorrow');
         await scheduleNotification('sleep', sleepReminderTime, true);
+        setTimeout(() => {
+          rescheduleLockRef.current.sleep = false;
+        }, 2000);
       }
     });
     
@@ -626,7 +747,7 @@ const AppSettingsScreen = () => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [sleepReminders, dailyReminders, saveSettings]);
+  }, [sleepReminders, dailyReminders, sleepReminderTime, saveSettings, scheduleNotification, cancelNotification]);
 
   // Handle sleep time changes
   useEffect(() => {
@@ -642,7 +763,7 @@ const AppSettingsScreen = () => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [sleepReminderTime, saveSettings]);
+  }, [sleepReminderTime, dailyReminders, sleepReminders, saveSettings, scheduleNotification]);
 
   const handleFocusAreaToggle = (area) => {
     setFocusAreas(prev => ({
@@ -742,11 +863,15 @@ const AppSettingsScreen = () => {
     if (Platform.OS === 'android') {
       setShowSleepTimePicker(false);
       if (event.type === 'set' && selectedTime) {
-        setSleepReminderTime(selectedTime);
+        // Create a new Date object to ensure state update
+        const newTime = new Date(selectedTime);
+        setSleepReminderTime(newTime);
       }
     } else {
       if (selectedTime) {
-        setSleepReminderTime(selectedTime);
+        // Create a new Date object to ensure state update
+        const newTime = new Date(selectedTime);
+        setSleepReminderTime(newTime);
       }
     }
   };
@@ -796,6 +921,9 @@ const AppSettingsScreen = () => {
                 // Silently handle notification cancellation errors
                 console.log('Notification cancellation error (non-critical):', err);
               });
+              
+              // Clear all caches before sign out to prevent showing previous user's data
+              clearAllGlobalCaches();
               
               // Sign out immediately
               const { error } = await supabase.auth.signOut();
@@ -894,9 +1022,9 @@ const AppSettingsScreen = () => {
             value={value}
             onValueChange={handleToggle}
             disabled={disabled}
-            trackColor={{ false: '#E5E7EB', true: COLORS.primaryLight }}
-            thumbColor={value ? COLORS.primary : '#FFFFFF'}
-            ios_backgroundColor="#E5E7EB"
+            trackColor={{ false: palette.switchTrackOff, true: palette.switchTrackOn }}
+            thumbColor={value ? palette.switchThumbOn : palette.switchThumbOff}
+            ios_backgroundColor={palette.switchTrackOff}
           />
         </Animated.View>
       </Animated.View>
@@ -940,21 +1068,22 @@ const AppSettingsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View style={styles.headerContainer}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="chevron-back" size={24} color={palette.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>App Settings</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </View>
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          
-          <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Ionicons name="chevron-back" size={24} color="#333" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>App Settings</Text>
-            <View style={styles.headerSpacer} />
-          </View>
           
           {renderSection('Notifications', (
             <View style={styles.sectionContent}>
@@ -1109,7 +1238,7 @@ const AppSettingsScreen = () => {
             <View style={styles.sectionContent}>
               
               <View style={styles.infoRow}>
-                <Ionicons name="information-circle-outline" size={16} color={COLORS.textMuted} />
+                <Ionicons name="information-circle-outline" size={16} color={palette.textMuted} />
                 <Text style={styles.infoText}>AI insights help you reflect and optimize your routine.</Text>
               </View>
 
@@ -1181,9 +1310,9 @@ const AppSettingsScreen = () => {
                 disabled={isLoggingOut}
               >
                 {isLoggingOut ? (
-                  <ActivityIndicator size="small" color={COLORS.error} />
+                  <ActivityIndicator size="small" color={palette.error} />
                 ) : (
-                  <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
+                  <Ionicons name="log-out-outline" size={20} color={palette.error} />
                 )}
                 <Text style={styles.logoutButtonText}>
                   {isLoggingOut ? 'Logging out...' : 'Logout'}
@@ -1206,7 +1335,7 @@ const AppSettingsScreen = () => {
       >
         <View style={styles.logoutModalOverlay}>
           <View style={styles.logoutModalContent}>
-            <ActivityIndicator size="large" color={COLORS.error} />
+            <ActivityIndicator size="large" color={palette.error} />
             <Text style={styles.logoutModalText}>Logging out...</Text>
           </View>
         </View>
@@ -1215,17 +1344,46 @@ const AppSettingsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (themeColors, isDark) => ({
+  background: themeColors.background,
+  surface: themeColors.cardBackground,
+  text: themeColors.textPrimary,
+  textPrimary: themeColors.textPrimary,
+  textSecondary: themeColors.textSecondary,
+  textMuted: themeColors.textMuted,
+  border: themeColors.border,
+  primary: themeColors.primary,
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  shadow: themeColors.shadow || '#000',
+  switchTrackOff: isDark ? 'rgba(255,255,255,0.25)' : themeColors.border,
+  switchTrackOn: themeColors.primary,
+  switchThumbOn: themeColors.primary,
+  switchThumbOff: isDark ? themeColors.textPrimary : '#FFFFFF',
+});
+
+const createStyles = (palette, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: palette.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 14,
     paddingHorizontal: 20,
-    marginBottom: 20,
+  },
+  headerContainer: {
+    backgroundColor: palette.background,
+    paddingTop: 10,
+    paddingBottom: 4,
+    shadowColor: palette.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: isDark ? 0.3 : 0.08,
+    shadowRadius: 4,
+    elevation: isDark ? 4 : 2,
+    zIndex: 2,
   },
   backButton: {
     padding: 8,
@@ -1234,7 +1392,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: palette.textPrimary,
     flex: 1,
     textAlign: 'center',
   },
@@ -1244,8 +1402,11 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 20,
+  },
   content: {
-    paddingTop: 0,
+    paddingTop: 12,
     paddingHorizontal: 0,
     paddingBottom: 20,
   },
@@ -1256,18 +1417,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.text,
+    color: palette.text,
     marginBottom: 16,
   },
   sectionContent: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: palette.surface,
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: isDark ? 0.25 : 0.05,
+    shadowRadius: isDark ? 8 : 4,
+    elevation: isDark ? 3 : 2,
   },
   settingItem: {
     flexDirection: 'row',
@@ -1281,21 +1442,21 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.text,
+    color: palette.text,
   },
   settingSubtitle: {
     fontSize: 14,
-    color: COLORS.textMuted,
+    color: palette.textMuted,
     marginTop: 2,
   },
   settingItemDisabled: {
     opacity: 0.5,
   },
   settingLabelDisabled: {
-    color: COLORS.textMuted,
+    color: palette.textMuted,
   },
   settingSubtitleDisabled: {
-    color: COLORS.textMuted,
+    color: palette.textMuted,
   },
   infoRow: {
     flexDirection: 'row',
@@ -1305,7 +1466,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: COLORS.textMuted,
+    color: palette.textMuted,
     marginLeft: 8,
     flex: 1,
   },
@@ -1315,7 +1476,7 @@ const styles = StyleSheet.create({
   subsectionTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.text,
+    color: palette.text,
     marginBottom: 12,
   },
   pillGroup: {
@@ -1331,48 +1492,48 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   pillButtonSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
   },
   pillButtonUnselected: {
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
   },
   pillButtonText: {
     fontSize: 14,
     fontWeight: '500',
   },
   pillButtonTextSelected: {
-    color: COLORS.surface,
+    color: palette.surface,
   },
   pillButtonTextUnselected: {
-    color: COLORS.textSecondary,
+    color: palette.textSecondary,
   },
   exportButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: COLORS.surface,
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: palette.border,
   },
   exportButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.textSecondary,
+    color: palette.textSecondary,
   },
   clearButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: COLORS.surface,
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: COLORS.error,
+    borderColor: palette.error,
   },
   clearButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.error,
+    color: palette.error,
   },
   logoutButton: {
     marginTop: 20,
@@ -1381,10 +1542,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     paddingHorizontal: 10,
-    backgroundColor: COLORS.surface,
+    backgroundColor: palette.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.error,
+    borderColor: palette.error,
     marginVertical: 8,
   },
   logoutButtonDisabled: {
@@ -1393,7 +1554,7 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.error,
+    color: palette.error,
     marginLeft: 8,
   },
   logoutModalOverlay: {
@@ -1403,7 +1564,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutModalContent: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: palette.surface,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
@@ -1413,7 +1574,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.text,
+    color: palette.text,
   },
   footer: {
     alignItems: 'center',
@@ -1422,7 +1583,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: COLORS.textMuted,
+    color: palette.textMuted,
   },
   modalOverlay: {
     flex: 1,
@@ -1430,7 +1591,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: palette.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 40,
@@ -1442,21 +1603,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: palette.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.text,
+    color: palette.text,
   },
   modalCancel: {
     fontSize: 16,
-    color: COLORS.textSecondary,
+    color: palette.textSecondary,
   },
   modalDone: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: palette.primary,
   },
   timePicker: {
     width: '100%',

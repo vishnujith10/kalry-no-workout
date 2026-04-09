@@ -1,9 +1,10 @@
-import supabase from '../lib/supabase';
 import axios from 'axios';
 import Constants from 'expo-constants';
+import supabase from '../lib/supabase';
 
 // -------------------- Edge Function URLs --------------------
-const BASE_URL = 'https://wdkraevjbcguvwpxscqf.functions.supabase.co';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || Constants.expoConfig?.extra?.supabaseUrl || 'https://tkuyjtdycmmkvunurlxj.supabase.co';
+const BASE_URL = supabaseUrl.replace('.supabase.co', '.functions.supabase.co');
 const ANALYZE_FOOD_FUNCTION = `${BASE_URL}/analyze-food`;
 
 // Edge function key (server-only) from env

@@ -12,21 +12,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingContext } from "../context/OnboardingContext";
+import { useTheme } from '../context/ThemeContext';
 import supabase from "../lib/supabase";
 
-// Modern Fitness Light Mode Palette
 const LIGHT_BG = '#F8F9FE';
 const CARD_BG = '#FFFFFF';
-const TEXT_PRIMARY = '#1A1D2E';
-const TEXT_SECONDARY = '#6B7280';
 const PRIMARY_PURPLE = '#A182F9';
 const SUCCESS_GREEN = '#10B981';
 const ENERGY_ORANGE = '#F97316';
+const TEXT_PRIMARY = '#1A1D2E';
+const TEXT_SECONDARY = '#6B7280';
 
 const paceOptions = [0.5, 0.75, 1, 1.5];
 
 const WeightGoalScreen = ({ navigation }) => {
   const { onboardingData, setOnboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
   const [weightUnit, setWeightUnit] = useState(
     onboardingData.selectedWeightUnit || "kg"
   );
@@ -182,19 +183,19 @@ const WeightGoalScreen = ({ navigation }) => {
   // Calculate difference
   const weightDiff = Math.round(Number(currentWeight) - Number(targetWeight));
   let diffColor =
-    weightDiff > 0 ? SUCCESS_GREEN : weightDiff < 0 ? ENERGY_ORANGE : TEXT_SECONDARY;
+    weightDiff > 0 ? SUCCESS_GREEN : weightDiff < 0 ? ENERGY_ORANGE : colors.textSecondary;
   let diffText = "";
   if (weightDiff > 0) diffText = `-${Math.abs(weightDiff)} ${weightUnit}`;
   else if (weightDiff < 0) diffText = `+${Math.abs(weightDiff)} ${weightUnit}`;
   else diffText = `0 ${weightUnit}`;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <View style={styles.backButtonCircle}>
-            <Ionicons name="chevron-back" size={24} color={TEXT_PRIMARY} />
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </View>
         </TouchableOpacity>
         <View style={{ width: 44 }} />
@@ -312,7 +313,7 @@ const WeightGoalScreen = ({ navigation }) => {
                 <MaterialIcons
                   name="calendar-today"
                   size={24}
-                  color={TEXT_PRIMARY}
+                  color={colors.textPrimary}
                 />
               </View>
               <View style={styles.estimateTextCol}>
@@ -327,7 +328,7 @@ const WeightGoalScreen = ({ navigation }) => {
                 <MaterialIcons
                   name="event-available"
                   size={24}
-                  color={TEXT_PRIMARY}
+                  color={colors.textPrimary}
                 />
               </View>
               <View style={styles.estimateTextCol}>

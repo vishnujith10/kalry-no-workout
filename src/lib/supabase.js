@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 
 // Use environment variables directly (from eas.json in production)
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || Constants.expoConfig.extra.supabaseUrl;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.expoConfig.extra.supabaseAnonKey;
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || Constants.expoConfig?.extra?.supabaseUrl || 'https://tkuyjtdycmmkvunurlxj.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.expoConfig?.extra?.supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrdXlqdGR5Y21ta3Z1bnVybHhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzIwMDYsImV4cCI6MjA4OTQwODAwNn0.Vs1fjhWuGK93s2vbe3mcj-nLQaCcKXGVQW3LjnpD2VY';
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -43,7 +43,7 @@ export const handleSessionExpiry = async () => {
         return null;
       }
     }
-    
+
     // If we have a session (even if expired), return it immediately
     // The app can validate/refresh it later when network is available
     if (session && session.user) {
@@ -69,12 +69,12 @@ export const handleSessionExpiry = async () => {
         return session;
       }
     }
-    
+
     // If no session, check for stored credentials (only if no network timeout)
     if (!error || error.message !== 'Session check timeout') {
       const storedEmail = await AsyncStorage.getItem('remembered_email');
       const storedPassword = await AsyncStorage.getItem('remembered_password');
-      
+
       if (storedEmail && storedPassword) {
         console.log('🔄 Attempting auto-login with stored credentials...');
         // Auto-login with stored credentials (with timeout)
@@ -86,7 +86,7 @@ export const handleSessionExpiry = async () => {
           const loginTimeout = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('Login timeout')), 5000);
           });
-          
+
           const loginResult = await Promise.race([loginPromise, loginTimeout]);
           if (loginResult.data?.session) {
             console.log('✅ Auto-login successful');
@@ -102,13 +102,13 @@ export const handleSessionExpiry = async () => {
         }
       }
     }
-    
+
     // If we still have a session object (even if expired), return it
     if (session) {
       console.log('⚠️ Returning session (may be expired):', session.user?.email);
       return session;
     }
-    
+
     console.log('❌ No valid session found');
     return null;
   } catch (error) {

@@ -17,6 +17,7 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import supabase from "../lib/supabase";
 
 // Use environment variables directly (from eas.json in production or EAS Secrets)
@@ -36,16 +37,7 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// App theme colors (keep in sync with other screens)
-const COLORS = {
-  primary: "#7C3AED",
-  surface: "#FFFFFF",
-  background: "#FFFFFF",
-  text: "#181A20",
-  textMuted: "#8E8E93",
-  border: "#E5E7EB",
-  cardShadow: "rgba(0,0,0,0.06)",
-};
+// Removed COLORS constant - now using theme context
 
 async function getCachedAnalysis(mealText) {
   const key = "quicklog_cache_" + mealText.trim().toLowerCase();
@@ -58,6 +50,8 @@ async function setCachedAnalysis(mealText, data) {
 }
 
 export default function QuickLogScreen({ navigation }) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const [mealText, setMealText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [analysis, setAnalysis] = useState(null);
@@ -106,7 +100,7 @@ export default function QuickLogScreen({ navigation }) {
       };
 
       // Use fewer models for faster performance - start with the most reliable one
-      const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+      const models = ["gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b"];
       let lastError = null;
 
       for (const modelName of models) {
@@ -311,8 +305,8 @@ The JSON object must have this structure:
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }} edges={['top','bottom']}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={styles.container} edges={['top','bottom']}>
+      <StatusBar style={isDark ? "light" : "dark"} />
       {/* Small compact loading modal when analyzing (similar to VoiceCalorieScreen) */}
       <Modal
         visible={isLoading}
@@ -322,7 +316,7 @@ The JSON object must have this structure:
       >
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size={40} color="#7B61FF" />
+            <ActivityIndicator size={40} color={colors.primary} />
             <Text style={styles.loadingTitle}>Processing...</Text>
             <Text style={styles.loadingSubtext}>
               Analyzing your meal
@@ -337,7 +331,7 @@ The JSON object must have this structure:
       >
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8 }}>
-            <Ionicons name="chevron-back" size={26} color={COLORS.text} />
+            <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Text to Calorie</Text>
           <View style={{ width: 32 }} />
@@ -377,7 +371,7 @@ The JSON object must have this structure:
           {/* Input card moved below tips */}
           <View style={[styles.cardInput, { marginTop: 50 }]}>
             <TouchableOpacity style={styles.editPill} activeOpacity={0.7}>
-              <Ionicons name="create-outline" size={18} color={COLORS.textMuted} />
+              <Ionicons name="create-outline" size={18} color={colors.textMuted} />
             </TouchableOpacity>
             {(!mealText || mealText.length === 0) && (
               <Text style={styles.multiPlaceholder} pointerEvents="none">
@@ -390,6 +384,7 @@ The JSON object must have this structure:
             <TextInput
               style={styles.input}
               placeholder={""}
+              placeholderTextColor={colors.textMuted}
               value={mealText}
               onChangeText={setMealText}
               multiline
@@ -398,7 +393,7 @@ The JSON object must have this structure:
         </View>
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.analyzeBtn, { backgroundColor: COLORS.primary }]}
+            style={[styles.analyzeBtn, { backgroundColor: colors.primary }]}
             onPress={handleAnalyze}
             disabled={isLoading}
           >
@@ -429,7 +424,11 @@ The JSON object must have this structure:
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -437,25 +436,25 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
     paddingHorizontal: 20,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: COLORS.text,
+    color: colors.textPrimary,
     flex: 1,
     textAlign: "center",
   },
   cardInput: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.cardBackground,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     position: "relative",
-    shadowColor: COLORS.cardShadow,
-    shadowOpacity: 1,
+    shadowColor: colors.shadow,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 12,
     elevation: 2,
     marginBottom: 16,
@@ -464,13 +463,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 10,
     right: 10,
-    backgroundColor: "#F6F6F8",
+    backgroundColor: isDark ? colors.border : "#F6F6F8",
     borderRadius: 14,
     padding: 6,
   },
   input: {
     fontSize: 16,
-    color: COLORS.text,
+    color: colors.textPrimary,
     minHeight: 130,
   },
   multiPlaceholder: {
@@ -478,29 +477,29 @@ const styles = StyleSheet.create({
     left: 16,
     top: 14,
     right: 16,
-    color: COLORS.textMuted,
+    color: colors.textMuted,
     fontSize: 16,
     lineHeight: 22,
   },
   recentCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.cardBackground,
     borderRadius: 20,
     paddingHorizontal: 18,
     paddingVertical: 18,
-    shadowColor: COLORS.cardShadow,
-    shadowOpacity: 1,
+    shadowColor: colors.shadow,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 12,
     elevation: 2,
     marginTop: 6,
   },
   recentTitle: {
     fontSize: 18,
-    color: COLORS.text,
+    color: colors.textPrimary,
     fontWeight: "600",
   },
   recentSub: {
     marginTop: 4,
-    color: COLORS.textMuted,
+    color: colors.textSecondary,
   },
   tipCard: {
     borderWidth: 1,
@@ -511,8 +510,8 @@ const styles = StyleSheet.create({
     minHeight: 140,
   },
   tipCardYellow: {
-    backgroundColor: '#FFFBEB', // amber-50
-    borderColor: '#FDE68A', // amber-300
+    backgroundColor: isDark ? '#FFFBEB' : '#FFFBEB', // Keep light amber-50 in both modes
+    borderColor: isDark ? '#FDE68A' : '#FDE68A', // Keep light amber-300 in both modes
   },
   tipIconWrap: {
     flexDirection: 'row',
@@ -525,7 +524,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   tipAmberText: {
-    color: '#B45309', // amber-700
+    color: '#B45309', // Keep amber-700 in both modes for consistency
   },
   tipTitle: {
     fontSize: 17,
@@ -533,7 +532,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   tipText: {
-    color: '#475467',
+    color: '#475467', // Keep consistent text color in both modes
     lineHeight: 22,
     fontSize: 15,
   },
@@ -548,7 +547,7 @@ const styles = StyleSheet.create({
     height: 7,
     width: 7,
     borderRadius: 3.5,
-    backgroundColor: '#B45309',
+    backgroundColor: '#B45309', // Keep consistent in both modes
     opacity: 0.35,
   },
   tipDotActive: {
@@ -561,8 +560,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: 20,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.cardBackground,
     alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   analyzeBtn: {
     borderRadius: 16,
@@ -581,7 +582,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingContainer: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 24,
     alignItems: "center",
@@ -593,17 +594,17 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: colors.textPrimary,
   },
   loadingSubtext: {
     marginTop: 8,
     fontSize: 14,
-    color: "#666",
+    color: colors.textSecondary,
     textAlign: "center",
   },
   logBtn: {
     flex: 1,
-    backgroundColor: "#3B82F6",
+    backgroundColor: colors.primary,
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",

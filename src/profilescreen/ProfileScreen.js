@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,36 +19,39 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 import { getResponsiveFontSize, getResponsivePadding } from '../utils/responsive';
 
 // Updated FooterBar component with oval design
-const FooterBar = ({ navigation, activeTab }) => {
+const FooterBar = ({ navigation, activeTab, palette, isDark }) => {
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
+  const footerStyles = useMemo(() => createFooterStyles(palette, isDark), [palette, isDark]);
+  
   const tabs = [
     {
       key: 'Home',
       label: 'Home',
-      icon: <Ionicons name="home-outline" size={24} color={activeTab === 'Home' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="home-outline" size={24} color={activeTab === 'Home' ? palette.primary : palette.textSecondary} />,
       route: 'MainDashboard',
     },
     
     {
       key: 'Meals',
       label: 'Meals',
-      icon: <Ionicons name="restaurant-outline" size={24} color={activeTab === 'Meals' ? '#232B3A' : '#232B3A'} />, // icon size 24
+      icon: <Ionicons name="restaurant-outline" size={24} color={activeTab === 'Meals' ? palette.primary : palette.textSecondary} />,
       route: 'Home',
     },
     {
       key: 'Workout',
       label: 'Workout',
-      icon: <Ionicons name="barbell-outline" size={24} color={activeTab === 'Workout' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="barbell-outline" size={24} color={activeTab === 'Workout' ? palette.primary : palette.textSecondary} />,
       route: 'Exercise',
     },
     {
       key: 'Profile',
       label: 'Profile',
-      icon: <Ionicons name="person-outline" size={24} color={activeTab === 'Profile' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="person-outline" size={24} color={activeTab === 'Profile' ? palette.primary : palette.textSecondary} />,
       route: 'Profile',
     },
   ];
@@ -72,7 +75,7 @@ const FooterBar = ({ navigation, activeTab }) => {
             activeOpacity={0.7}
           >
             {React.cloneElement(tab.icon, {
-              color: tab.key === activeTab ? '#7B61FF' : '#232B3A',
+              color: tab.key === activeTab ? palette.primary : palette.textSecondary,
             })}
             <Text
               style={[
@@ -93,7 +96,7 @@ const FooterBar = ({ navigation, activeTab }) => {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Global cache for ProfileScreen (similar to other screens)
-const globalProfileCache = {
+export const globalProfileCache = {
   lastFetchTime: 0,
   CACHE_DURATION: 300000, // 5 minutes - profile data doesn't change often
   cachedData: null,
@@ -102,52 +105,12 @@ const globalProfileCache = {
 const ProfileScreen = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
   const navigation = useNavigation();
+  const { colors, isDark } = useTheme();
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   
-  // Log when ProfileScreen is rendered
-  useEffect(() => {
-    console.log('🔴 ===== ProfileScreen RENDERED =====');
-    console.log('🔴 Current timestamp:', new Date().toISOString());
-    console.log('🔴 This should only show if user is not onboarded');
-    
-    // Check if we should actually be here
-    const checkIfShouldBeHere = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from('user_profile')
-            .select('name, age, gender, height, weight, calorie_goal')
-            .eq('id', user.id)
-            .single();
-          
-          if (profile) {
-            const hasEssentialFields = 
-              profile.name && 
-              profile.age && 
-              profile.gender && 
-              profile.height && 
-              profile.weight && 
-              profile.calorie_goal;
-            
-            if (hasEssentialFields) {
-              console.log('⚠️ WARNING: User is onboarded but on ProfileScreen - redirecting to MainDashboard');
-              // User is actually onboarded, redirect to MainDashboard
-              setTimeout(() => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'MainDashboard' }],
-                });
-              }, 1000);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error checking profile in ProfileScreen:', error);
-      }
-    };
-    
-    checkIfShouldBeHere();
-  }, [navigation]);
+  // Note: Removed automatic redirect check - ProfileScreen should be accessible to all users
+  // The onboarding flow handles navigation during initial setup
   
   // Initialize state from cache if available (prevents loading flash)
   const [userProfile, setUserProfile] = useState(() => {
@@ -457,9 +420,9 @@ const ProfileScreen = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7B61FF" />
+          <ActivityIndicator size="large" color={palette.primary} />
           <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
       </View>
@@ -468,12 +431,12 @@ const ProfileScreen = () => {
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('MainDashboard')}>
-          <Ionicons name="chevron-back" size={24} color="#333" />
+          <Ionicons name="chevron-back" size={24} color={palette.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
         <View style={styles.placeholder} />
@@ -500,7 +463,7 @@ const ProfileScreen = () => {
                   resizeMode="cover"
                 />
               ) : (
-                <Ionicons name="person" size={60} color="#999" />
+                <Ionicons name="person" size={60} color={palette.textMuted} />
               )}
             </TouchableOpacity>
             <TouchableOpacity 
@@ -509,9 +472,9 @@ const ProfileScreen = () => {
               disabled={uploading}
             >
               {uploading ? (
-                <ActivityIndicator size="small" color="#666" />
+                <ActivityIndicator size="small" color={palette.textSecondary} />
               ) : (
-                <Ionicons name="camera" size={16} color="#666" />
+                <Ionicons name="camera" size={16} color={palette.textSecondary} />
               )}
             </TouchableOpacity>
           </View>
@@ -545,13 +508,13 @@ const ProfileScreen = () => {
             onPress={() => navigation.navigate('PersonalInfo')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="person-outline" size={20} color="#666" />
+              <Ionicons name="person-outline" size={20} color={palette.textSecondary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Personal Info</Text>
                 <Text style={styles.settingSubtitle}>Name, Email, Birthday</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Ionicons name="chevron-forward" size={20} color={palette.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -559,13 +522,13 @@ const ProfileScreen = () => {
             onPress={() => navigation.navigate('Preferences')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="options-outline" size={20} color="#666" />
+              <Ionicons name="options-outline" size={20} color={palette.textSecondary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Preferences</Text>
                 <Text style={styles.settingSubtitle}>Units, Reminders, Theme</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Ionicons name="chevron-forward" size={20} color={palette.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -573,41 +536,41 @@ const ProfileScreen = () => {
             onPress={() => navigation.navigate('AppSettings')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="settings-outline" size={20} color="#666" />
+              <Ionicons name="settings-outline" size={20} color={palette.textSecondary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>App Settings</Text>
                 <Text style={styles.settingSubtitle}>Notifications, AI Insights, Privacy</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Ionicons name="chevron-forward" size={20} color={palette.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="link-outline" size={20} color="#666" />
+              <Ionicons name="link-outline" size={20} color={palette.textSecondary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Connected Devices</Text>
                 <Text style={styles.settingSubtitle}>Sync with Apple Health, Google Fit</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Ionicons name="chevron-forward" size={20} color={palette.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="shield-outline" size={20} color="#666" />
+              <Ionicons name="shield-outline" size={20} color={palette.textSecondary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Privacy & Security</Text>
                 <Text style={styles.settingSubtitle}>Password, 2FA, Data</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Ionicons name="chevron-forward" size={20} color={palette.textMuted} />
           </TouchableOpacity>
         </View>
       </ScrollView>
 
       {/* Updated FooterBar with oval design */}
-      <FooterBar navigation={navigation} activeTab="Profile" />
+      <FooterBar navigation={navigation} activeTab="Profile" palette={palette} isDark={isDark} />
 
       {/* Square Image Viewer Modal - FIXED VERSION */}
       <Modal
@@ -645,7 +608,7 @@ const ProfileScreen = () => {
                 {/* Image inside square modal */}
                 {imageLoading ? (
                   <View style={styles.squareModalPlaceholder}>
-                    <ActivityIndicator size="large" color="#7B61FF" />
+                    <ActivityIndicator size="large" color={palette.primary} />
                     <Text style={styles.loadingImageText}>Loading image...</Text>
                   </View>
                 ) : profilePhotoUrl ? (
@@ -662,7 +625,7 @@ const ProfileScreen = () => {
                   />
                 ) : (
                   <View style={styles.squareModalPlaceholder}>
-                    <Ionicons name="person" size={60} color="#999" />
+                    <Ionicons name="person" size={60} color={palette.textMuted} />
                     <Text style={styles.loadingImageText}>No image available</Text>
                   </View>
                 )}
@@ -675,10 +638,21 @@ const ProfileScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (themeColors, isDark) => ({
+  background: themeColors.background,
+  cardBackground: themeColors.cardBackground,
+  textPrimary: themeColors.textPrimary,
+  textSecondary: themeColors.textSecondary,
+  textMuted: themeColors.textMuted,
+  border: themeColors.border,
+  primary: themeColors.primary,
+  shadow: themeColors.shadow || '#000',
+});
+
+const createStyles = (palette, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8E9F0',
+    backgroundColor: palette.background,
   },
   header: {
     flexDirection: 'row',
@@ -687,7 +661,7 @@ const styles = StyleSheet.create({
     paddingTop: getResponsivePadding(20),
     paddingHorizontal: getResponsivePadding(20),
     paddingBottom: getResponsivePadding(20),
-    backgroundColor: '#E8E9F0',
+    backgroundColor: palette.background,
     minHeight: getResponsivePadding(60),
   },
   backButton: {
@@ -696,7 +670,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: getResponsiveFontSize(18),
     fontWeight: '600',
-    color: '#333',
+    color: palette.textPrimary,
   },
   placeholder: {
     width: 40,
@@ -717,9 +691,9 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.cardBackground,
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: palette.border,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -736,19 +710,21 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 4,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
   profileName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#333',
+    color: palette.textPrimary,
     marginBottom: 5,
   },
   quickStatsSection: {
@@ -757,7 +733,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#333',
+    color: palette.textPrimary,
     marginBottom: 15,
   },
   statsContainer: {
@@ -765,39 +741,43 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   statCard: {
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 15,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDark ? 0.25 : 0.05,
     shadowRadius: 8,
     elevation: 2,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   statNumber: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#333',
+    color: palette.textPrimary,
     marginBottom: 5,
   },
   statLabel: {
     fontSize: 14,
-    color: '#666',
+    color: palette.textSecondary,
     fontWeight: '500',
   },
   settingsSection: {
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     borderRadius: 20,
     marginVertical: 10,
     paddingVertical: 10,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDark ? 0.25 : 0.05,
     shadowRadius: 10,
     elevation: 2,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   settingItem: {
     flexDirection: 'row',
@@ -818,23 +798,23 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: palette.textPrimary,
     marginBottom: 2,
   },
   settingSubtitle: {
     fontSize: 13,
-    color: '#666',
+    color: palette.textSecondary,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#E8E9F0',
+    backgroundColor: palette.background,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: palette.textSecondary,
   },
   // FIXED Square Image Viewer Modal Styles
   imageViewerContainer: {
@@ -849,14 +829,16 @@ const styles = StyleSheet.create({
   squareModal: {
     width: SCREEN_WIDTH * 0.85,
     height: SCREEN_WIDTH * 0.85,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.cardBackground,
     borderRadius: 10,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: isDark ? 0.5 : 0.3,
     shadowRadius: 10,
     elevation: 10,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   squareModalImage: {
     width: '100%',
@@ -867,12 +849,12 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: isDark ? '#1A1A1A' : '#F5F5F5',
   },
   loadingImageText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#666',
+    color: palette.textSecondary,
   },
   editButtonInModal: {
     position: 'absolute',
@@ -880,14 +862,14 @@ const styles = StyleSheet.create({
     right: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.primary,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
     zIndex: 1000,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: isDark ? 0.5 : 0.25,
     shadowRadius: 4,
     elevation: 5,
   },
@@ -899,8 +881,8 @@ const styles = StyleSheet.create({
   },
 });
 
-// Updated footerStyles for oval design
-const footerStyles = StyleSheet.create({
+// Updated footerStyles for oval design with dark theme support
+const createFooterStyles = (palette, isDark) => StyleSheet.create({
   container: {
     position: 'absolute',
     left: getResponsivePadding(16),
@@ -914,18 +896,15 @@ const footerStyles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: isDark ? 'rgba(30, 30, 40, 0.95)' : 'rgba(255, 255, 255, 0.95)',
     borderRadius: 35,
     paddingVertical: 16,
     paddingHorizontal: 20,
-    shadowColor: '#7B61FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 16,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
     // Add backdrop filter effect for iOS
     ...(Platform.OS === 'ios' && {
-      backgroundColor: 'rgba(255, 255, 255, 0.85)',
+      backgroundColor: isDark ? 'rgba(30, 30, 40, 0.85)' : 'rgba(255, 255, 255, 0.85)',
     }),
   },
   tab: {
@@ -941,12 +920,12 @@ const footerStyles = StyleSheet.create({
   label: {
     fontSize: getResponsiveFontSize(12),
     marginTop: getResponsivePadding(4),
-    color: '#232B3A',
+    color: palette.textSecondary,
     letterSpacing: 0.1,
     fontWeight: '500',
   },
   activeLabel: {
-    color: '#7B61FF',
+    color: palette.primary,
     fontWeight: '600',
   },
   activeIndicator: {
@@ -954,7 +933,7 @@ const footerStyles = StyleSheet.create({
     bottom: -12,
     width: 30,
     height: 3,
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.primary,
     borderRadius: 2,
   },
 });

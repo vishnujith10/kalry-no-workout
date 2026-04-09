@@ -1,39 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
-
-const COLORS = {
-  primary: '#3B82F6',
-  primaryHover: '#2563EB',
-  primaryLight: '#DBEAFE',
-  text: '#333',
-  secondary: '#666',
-  muted: '#999',
-  placeholder: '#D1D5DB',
-  background: '#E8E9F0',
-  surface: '#F9FAFB',
-  card: '#FFF',
-  border: '#E5E7EB',
-  success: '#10B981',
-  error: '#EF4444',
-};
 
 const PersonalInfoScreen = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
   const navigation = useNavigation();
+  const { colors, isDark } = useTheme();
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [todayCalories, setTodayCalories] = useState(0);
   const [activeDays, setActiveDays] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -219,7 +207,7 @@ const PersonalInfoScreen = () => {
     return (
       <TouchableOpacity style={styles.settingItem}>
         <View style={styles.settingLeft}>
-          <Ionicons name={iconName} size={20} color="#666" />
+          <Ionicons name={iconName} size={20} color={palette.icon} />
           <View style={styles.settingText}>
             <Text style={styles.settingTitle}>{label}</Text>
             {isEditing ? (
@@ -229,6 +217,7 @@ const PersonalInfoScreen = () => {
                   value={value?.toString() || ''}
                   onChangeText={(text) => setEditValues(prev => ({ ...prev, [field]: text }))}
                   placeholder={`Enter ${label.toLowerCase()}`}
+                  placeholderTextColor={palette.placeholder}
                   autoFocus
                 />
                 <View style={styles.editActions}>
@@ -236,13 +225,13 @@ const PersonalInfoScreen = () => {
                     style={styles.saveButton} 
                     onPress={() => handleSave(field)}
                   >
-                    <Ionicons name="checkmark" size={16} color={COLORS.success} />
+                    <Ionicons name="checkmark" size={16} color={palette.success} />
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.cancelButton} 
                     onPress={() => handleCancel(field)}
                   >
-                    <Ionicons name="close" size={16} color={COLORS.error} />
+                    <Ionicons name="close" size={16} color={palette.error} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -255,7 +244,7 @@ const PersonalInfoScreen = () => {
         </View>
         {!isEditing && (
           <TouchableOpacity onPress={() => handleEdit(field, currentValue)}>
-            <Ionicons name="pencil" size={16} color="#666" />
+            <Ionicons name="pencil" size={16} color={palette.icon} />
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -264,7 +253,7 @@ const PersonalInfoScreen = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       
       {/* Header */}
       <View style={styles.header}>
@@ -272,7 +261,7 @@ const PersonalInfoScreen = () => {
           style={styles.backButton} 
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="chevron-back" size={24} color="#333" />
+          <Ionicons name="chevron-back" size={24} color={palette.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Personal Info</Text>
         <View style={styles.placeholder} />
@@ -293,13 +282,13 @@ const PersonalInfoScreen = () => {
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>
-                {isLoading ? <ActivityIndicator size="small" color={COLORS.primary} /> : todayCalories}
+                {isLoading ? <ActivityIndicator size="small" color={palette.primary} /> : todayCalories}
               </Text>
               <Text style={styles.statLabel}>Calories</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>
-                {isLoading ? <ActivityIndicator size="small" color={COLORS.primary} /> : activeDays}
+                {isLoading ? <ActivityIndicator size="small" color={palette.primary} /> : activeDays}
               </Text>
               <Text style={styles.statLabel}>Days Active</Text>
             </View>
@@ -336,19 +325,39 @@ const PersonalInfoScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (themeColors, isDark) => ({
+  background: themeColors.background,
+  card: themeColors.cardBackground,
+  textPrimary: themeColors.textPrimary,
+  textSecondary: themeColors.textSecondary,
+  textMuted: themeColors.textMuted,
+  border: themeColors.border,
+  primary: themeColors.primary,
+  success: '#10B981',
+  error: '#EF4444',
+  icon: themeColors.textSecondary,
+  statCardBg: themeColors.cardBackground,
+  statShadow: themeColors.shadow || '#000',
+  editContainerBg: isDark ? '#1A2030' : '#F8F9FA',
+  editInputBg: isDark ? '#131728' : '#FFFFFF',
+  placeholder: isDark ? '#A0AEC0' : '#9CA3AF',
+  saveBg: isDark ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.15)',
+  cancelBg: isDark ? 'rgba(239,68,68,0.25)' : 'rgba(239,68,68,0.15)',
+});
+
+const createStyles = (palette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8E9F0',
+    backgroundColor: palette.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 50,
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 10,
-    backgroundColor: '#E8E9F0',
+    backgroundColor: palette.background,
   },
   backButton: {
     padding: 8,
@@ -356,7 +365,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: palette.textPrimary,
   },
   placeholder: {
     width: 40,
@@ -371,7 +380,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#333',
+    color: palette.textPrimary,
     marginBottom: 15,
   },
   statsContainer: {
@@ -379,37 +388,37 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   statCard: {
-    backgroundColor: 'white',
+    backgroundColor: palette.statCardBg,
     borderRadius: 16,
     padding: 15,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
-    shadowColor: '#000',
+    shadowColor: palette.statShadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
   },
   statNumber: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#333',
+    color: palette.textPrimary,
     marginBottom: 5,
   },
   statLabel: {
     fontSize: 14,
-    color: '#666',
+    color: palette.textSecondary,
     fontWeight: '500',
   },
   settingsSection: {
-    backgroundColor: 'white',
+    backgroundColor: palette.card,
     borderRadius: 20,
     marginVertical: 10,
     paddingVertical: 10,
-    shadowColor: '#000',
+    shadowColor: palette.statShadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 2,
   },
@@ -432,34 +441,34 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: palette.textPrimary,
     marginBottom: 2,
   },
   settingSubtitle: {
     fontSize: 13,
-    color: '#666',
+    color: palette.textSecondary,
   },
   editContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: palette.editContainerBg,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: palette.border,
   },
   editInput: {
     flex: 1,
     paddingVertical: 8,
     paddingHorizontal: 8,
     fontSize: 14,
-    color: '#333',
-    backgroundColor: '#FFFFFF',
+    color: palette.textPrimary,
+    backgroundColor: palette.editInputBg,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: palette.border,
   },
   editActions: {
     flexDirection: 'row',
@@ -468,17 +477,17 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     padding: 8,
-    backgroundColor: COLORS.success + '20',
+    backgroundColor: palette.saveBg,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: COLORS.success,
+    borderColor: palette.success,
   },
   cancelButton: {
     padding: 8,
-    backgroundColor: COLORS.error + '20',
+    backgroundColor: palette.cancelBg,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: COLORS.error,
+    borderColor: palette.error,
   },
 });
 

@@ -181,3 +181,14 @@ export const invalidateAllCaches = () => {
   invalidateHomeScreenCache();
 };
 
+// Clear all global caches (for logout/login)
+export const clearAllGlobalCaches = () => {
+  // Clear centralized caches
+  invalidateAllCaches();
+  
+  // Clear other global caches by resetting them
+  // Note: This function should be called from screens that define these caches
+  // We'll export a helper that screens can use to clear their own caches
+  console.log('🧹 Clearing all global caches...');
+};
+

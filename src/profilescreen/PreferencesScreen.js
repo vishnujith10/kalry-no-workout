@@ -1,19 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 
 const PreferencesScreen = () => {
   const navigation = useNavigation();
+  const { theme, updateTheme, colors, isDark } = useTheme();
   
   // State for units
   const [weightUnit, setWeightUnit] = useState('kg');
@@ -27,11 +30,18 @@ const PreferencesScreen = () => {
   // State for workout reminders
   const [workoutReminder, setWorkoutReminder] = useState(true);
   
-  // State for theme
-  const [appTheme, setAppTheme] = useState('Light');
-  
   // State for sleep reminders
   const [sleepReminder, setSleepReminder] = useState(false);
+  
+  // Animation refs for sliding indicators
+  const weightSlideAnim = useRef(new Animated.Value(0)).current;
+  const heightSlideAnim = useRef(new Animated.Value(0)).current;
+  const themeSlideAnim = useRef(new Animated.Value(0)).current;
+  
+  // Button widths for sliding calculation
+  const [weightButtonWidth, setWeightButtonWidth] = useState(0);
+  const [heightButtonWidth, setHeightButtonWidth] = useState(0);
+  const [themeButtonWidth, setThemeButtonWidth] = useState(0);
   
   useEffect(() => {
     fetchUserPreferences();
@@ -52,8 +62,6 @@ const PreferencesScreen = () => {
     return value;
   };
 
-  // No need for AsyncStorage - units are now saved in database during signup
-
   const fetchUserPreferences = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -71,11 +79,9 @@ const PreferencesScreen = () => {
       }
 
       if (data) {
-        // Use database values with fallback defaults
         setWeightUnit(data.weight_unit || 'kg');
         setHeightUnit(data.height_unit || 'cm');
       } else {
-        // No database data, use defaults
         setWeightUnit('kg');
         setHeightUnit('cm');
       }
@@ -116,7 +122,6 @@ const PreferencesScreen = () => {
     setWeightUnit(unit);
     saveUnitPreference('weight_unit', unit);
     
-    // Convert weight values in database
     await convertUserWeightValues(oldUnit, unit);
   };
 
@@ -126,7 +131,6 @@ const PreferencesScreen = () => {
     setHeightUnit(unit);
     saveUnitPreference('height_unit', unit);
     
-    // Convert height values in database
     await convertUserHeightValues(oldUnit, unit);
   };
 
@@ -135,7 +139,6 @@ const PreferencesScreen = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get current user profile
       const { data: profile } = await supabase
         .from('user_profile')
         .select('weight, target_weight')
@@ -145,21 +148,18 @@ const PreferencesScreen = () => {
       if (profile) {
         const updates = {};
         
-        // Convert current weight
         if (profile.weight) {
           const convertedWeight = convertWeight(Number(profile.weight), fromUnit, toUnit);
           console.log(`Converting weight: ${profile.weight} ${fromUnit} → ${convertedWeight} ${toUnit}`);
           updates.weight = convertedWeight;
         }
         
-        // Convert target weight
         if (profile.target_weight) {
           const convertedTargetWeight = convertWeight(Number(profile.target_weight), fromUnit, toUnit);
           console.log(`Converting target weight: ${profile.target_weight} ${fromUnit} → ${convertedTargetWeight} ${toUnit}`);
           updates.target_weight = convertedTargetWeight;
         }
 
-        // Update database with converted values
         if (Object.keys(updates).length > 0) {
           await supabase
             .from('user_profile')
@@ -169,7 +169,6 @@ const PreferencesScreen = () => {
           console.log('Weight values converted successfully');
         }
 
-        // Also convert weight logs
         await convertWeightLogs(fromUnit, toUnit);
       }
     } catch (error) {
@@ -182,7 +181,6 @@ const PreferencesScreen = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get current user profile
       const { data: profile } = await supabase
         .from('user_profile')
         .select('height')
@@ -190,11 +188,9 @@ const PreferencesScreen = () => {
         .single();
 
       if (profile && profile.height) {
-        // Convert height
         const convertedHeight = convertHeight(Number(profile.height), fromUnit, toUnit);
         console.log(`Converting height: ${profile.height} ${fromUnit} → ${convertedHeight} ${toUnit}`);
         
-        // Update database with converted value
         await supabase
           .from('user_profile')
           .update({ height: convertedHeight })
@@ -212,14 +208,12 @@ const PreferencesScreen = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get all weight logs for the user
       const { data: logs } = await supabase
         .from('weight_logs')
         .select('id, weight')
         .eq('user_id', user.id);
 
       if (logs && logs.length > 0) {
-        // Convert each weight log
         for (const log of logs) {
           if (log.weight) {
             const convertedWeight = convertWeight(Number(log.weight), fromUnit, toUnit);
@@ -236,18 +230,138 @@ const PreferencesScreen = () => {
     }
   };
   
+  // Animate weight unit selection
+  useEffect(() => {
+    const targetPosition = weightUnit === 'kg' ? 0 : 1;
+    
+    Animated.spring(weightSlideAnim, {
+      toValue: targetPosition,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+      velocity: 2,
+    }).start();
+  }, [weightUnit, weightSlideAnim]);
+  
+  // Animate height unit selection
+  useEffect(() => {
+    const targetPosition = heightUnit === 'cm' ? 0 : 1;
+    
+    Animated.spring(heightSlideAnim, {
+      toValue: targetPosition,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+      velocity: 2,
+    }).start();
+  }, [heightUnit, heightSlideAnim]);
+  
+  // Animate theme selection
+  useEffect(() => {
+    const targetPosition = theme === 'Light' ? 0 : 1;
+    
+    Animated.spring(themeSlideAnim, {
+      toValue: targetPosition,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+      velocity: 2,
+    }).start();
+  }, [theme, themeSlideAnim]);
+  
+  const dynamicStyles = useMemo(() => StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingTop: 50,
+      paddingHorizontal: 20,
+      paddingBottom: 20,
+      backgroundColor: colors.background,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    headerSubtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    card: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cardTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 16,
+    },
+    settingLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    unitSelector: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F5F5F5',
+      borderRadius: 8,
+      padding: 4,
+      position: 'relative',
+    },
+    themeSelector: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F5F5F5',
+      borderRadius: 8,
+      padding: 4,
+      position: 'relative',
+    },
+    unitButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    unitButtonTextActive: {
+      color: '#FFFFFF',
+    },
+    themeButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    themeButtonTextActive: {
+      color: '#FFFFFF',
+    },
+  }), [colors, isDark]);
+
   return (
-    <View style={styles.container}>
-      <StatusBar style="auto" />
+    <View style={dynamicStyles.container}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={dynamicStyles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color="#333" />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Preferences</Text>
-          <Text style={styles.headerSubtitle}>Set your app experience to suit your routine.</Text>
+          <Text style={dynamicStyles.headerTitle}>Preferences</Text>
+          <Text style={dynamicStyles.headerSubtitle}>Set your app experience to suit your routine.</Text>
         </View>
         <View style={styles.placeholder} />
       </View>
@@ -255,43 +369,97 @@ const PreferencesScreen = () => {
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         
         {/* Units Section */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Units</Text>
+        <View style={dynamicStyles.card}>
+          <Text style={dynamicStyles.cardTitle}>Units</Text>
           
           {/* Weight Units */}
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Weight Units</Text>
-            <View style={styles.unitSelector}>
+            <Text style={dynamicStyles.settingLabel}>Weight Units</Text>
+            <View 
+              style={dynamicStyles.unitSelector}
+              onLayout={(event) => {
+                const { width } = event.nativeEvent.layout;
+                const calculatedWidth = (width - 8) / 2;
+                setWeightButtonWidth(calculatedWidth);
+              }}
+            >
+               {/* Sliding indicator for weight */}
+               {weightButtonWidth > 0 && (
+                 <Animated.View 
+                   style={[
+                     styles.slidingIndicator,
+                     {
+                       width: weightButtonWidth,
+                       backgroundColor: colors.primary,
+                       shadowColor: colors.primary,
+                       transform: [{
+                         translateX: weightSlideAnim.interpolate({
+                           inputRange: [0, 1],
+                           outputRange: [0, weightButtonWidth + 4],
+                         })
+                       }]
+                     }
+                   ]} 
+                 />
+               )}
+              
               <TouchableOpacity
-                style={[styles.unitButton, weightUnit === 'kg' && styles.unitButtonActive]}
+                style={styles.unitButton}
                 onPress={() => handleWeightUnitChange('kg')}
               >
-                <Text style={[styles.unitButtonText, weightUnit === 'kg' && styles.unitButtonTextActive]}>kg</Text>
+                <Text style={[dynamicStyles.unitButtonText, weightUnit === 'kg' && dynamicStyles.unitButtonTextActive]}>kg</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.unitButton, weightUnit === 'lbs' && styles.unitButtonActive]}
+                style={styles.unitButton}
                 onPress={() => handleWeightUnitChange('lbs')}
               >
-                <Text style={[styles.unitButtonText, weightUnit === 'lbs' && styles.unitButtonTextActive]}>lbs</Text>
+                <Text style={[dynamicStyles.unitButtonText, weightUnit === 'lbs' && dynamicStyles.unitButtonTextActive]}>lbs</Text>
               </TouchableOpacity>
             </View>
           </View>
           
           {/* Height Units */}
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Height Units</Text>
-            <View style={styles.unitSelector}>
+            <Text style={dynamicStyles.settingLabel}>Height Units</Text>
+            <View 
+              style={dynamicStyles.unitSelector}
+              onLayout={(event) => {
+                const { width } = event.nativeEvent.layout;
+                const calculatedWidth = (width - 8) / 2;
+                setHeightButtonWidth(calculatedWidth);
+              }}
+            >
+               {/* Sliding indicator for height */}
+               {heightButtonWidth > 0 && (
+                 <Animated.View 
+                   style={[
+                     styles.slidingIndicator,
+                     {
+                       width: heightButtonWidth,
+                       backgroundColor: colors.primary,
+                       shadowColor: colors.primary,
+                       transform: [{
+                         translateX: heightSlideAnim.interpolate({
+                           inputRange: [0, 1],
+                           outputRange: [0, heightButtonWidth + 4],
+                         })
+                       }]
+                     }
+                   ]} 
+                 />
+               )}
+              
               <TouchableOpacity
-                style={[styles.unitButton, heightUnit === 'cm' && styles.unitButtonActive]}
+                style={styles.unitButton}
                 onPress={() => handleHeightUnitChange('cm')}
               >
-                <Text style={[styles.unitButtonText, heightUnit === 'cm' && styles.unitButtonTextActive]}>cm</Text>
+                <Text style={[dynamicStyles.unitButtonText, heightUnit === 'cm' && dynamicStyles.unitButtonTextActive]}>cm</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.unitButton, heightUnit === 'ft' && styles.unitButtonActive]}
+                style={styles.unitButton}
                 onPress={() => handleHeightUnitChange('ft')}
               >
-                <Text style={[styles.unitButtonText, heightUnit === 'ft' && styles.unitButtonTextActive]}>ft</Text>
+                <Text style={[dynamicStyles.unitButtonText, heightUnit === 'ft' && dynamicStyles.unitButtonTextActive]}>ft</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -299,67 +467,69 @@ const PreferencesScreen = () => {
         </View>
 
         {/* Theme & Appearance Section */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Theme & Appearance</Text>
+        <View style={dynamicStyles.card}>
+          <Text style={dynamicStyles.cardTitle}>Theme & Appearance</Text>
           
           {/* App Theme */}
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>App Theme</Text>
-            <View style={styles.themeSelector}>
+           <View style={styles.settingRow}>
+             <Text style={dynamicStyles.settingLabel}>App Theme</Text>
+             <View 
+               style={dynamicStyles.themeSelector}
+              onLayout={(event) => {
+                const { width } = event.nativeEvent.layout;
+                const calculatedWidth = (width - 8) / 2;
+                setThemeButtonWidth(calculatedWidth);
+              }}
+            >
+               {/* Sliding indicator for theme */}
+               {themeButtonWidth > 0 && (
+                 <Animated.View 
+                   style={[
+                     styles.themeSlidingIndicator,
+                     {
+                       width: themeButtonWidth,
+                       backgroundColor: colors.primary,
+                       shadowColor: colors.primary,
+                       transform: [{
+                         translateX: themeSlideAnim.interpolate({
+                           inputRange: [0, 1],
+                           outputRange: [0, themeButtonWidth + 4],
+                         })
+                       }]
+                     }
+                   ]} 
+                 />
+               )}
+              
               <TouchableOpacity
-                style={[styles.themeButton, appTheme === 'Light' && styles.themeButtonActive]}
-                onPress={() => setAppTheme('Light')}
+                style={styles.themeButton}
+                onPress={() => updateTheme('Light')}
               >
-                <Text style={[styles.themeButtonText, appTheme === 'Light' && styles.themeButtonTextActive]}>Light</Text>
+                <Text style={[dynamicStyles.themeButtonText, theme === 'Light' && dynamicStyles.themeButtonTextActive]}>Light</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.themeButton, appTheme === 'Dark' && styles.themeButtonActive]}
-                onPress={() => setAppTheme('Dark')}
+                style={styles.themeButton}
+                onPress={() => updateTheme('Dark')}
               >
-                <Text style={[styles.themeButtonText, appTheme === 'Dark' && styles.themeButtonTextActive]}>Dark</Text>
+                <Text style={[dynamicStyles.themeButtonText, theme === 'Dark' && dynamicStyles.themeButtonTextActive]}>Dark</Text>
               </TouchableOpacity>
             </View>
           </View>
           
-          
         </View>
 
-  
       </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#E8E9F0',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: '#E8E9F0',
-  },
   backButton: {
     padding: 8,
   },
   headerContent: {
     flex: 1,
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
   },
   placeholder: {
     width: 40,
@@ -368,37 +538,20 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 16,
-  },
   settingRow: {
     marginBottom: 16,
   },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  unitSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 16,
-    padding: 4,
+  slidingIndicator: {
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    bottom: 4,
+    borderRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 0,
   },
   unitButton: {
     flex: 1,
@@ -406,9 +559,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 16,
     alignItems: 'center',
-  },
-  unitButtonActive: {
-    backgroundColor: '#7B61FF',
+    zIndex: 1,
   },
   unitButtonText: {
     fontSize: 14,
@@ -442,11 +593,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-  themeSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    padding: 4,
+  themeSlidingIndicator: {
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    bottom: 4,
+    borderRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 0,
   },
   themeButton: {
     flex: 1,
@@ -454,9 +611,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 6,
     alignItems: 'center',
-  },
-  themeButtonActive: {
-    backgroundColor: '#7B61FF',
+    zIndex: 1,
   },
   themeButtonText: {
     fontSize: 14,

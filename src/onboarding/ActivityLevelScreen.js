@@ -5,13 +5,13 @@ import React, { useContext, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 
-// Modern Fitness Light Mode Palette
 const LIGHT_BG = '#F8F9FE';
 const CARD_BG = '#FFFFFF';
-const TEXT_PRIMARY = '#1A1D2E';
 const TEXT_SECONDARY = '#6B7280';
 const PRIMARY_PURPLE = '#A182F9';
+const TEXT_PRIMARY = '#1A1D2E';
 
 const activityLevels = [
   {
@@ -54,6 +54,7 @@ const activityLevels = [
 
 const ActivityLevelScreen = ({ navigation }) => {
   const { onboardingData, setOnboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
   const [selected, setSelected] = useState(null);
 
   const handleContinue = (selectedLevel) => {
@@ -64,13 +65,67 @@ const ActivityLevelScreen = ({ navigation }) => {
     navigation.navigate('Focus');
   };
 
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    subtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      letterSpacing: 2,
+      fontWeight: '600',
+      marginBottom: 6,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      fontFamily: 'Lexend-Bold',
+      letterSpacing: -0.5,
+      marginBottom: 8,
+      lineHeight: 34,
+    },
+    description: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      lineHeight: 24,
+      marginBottom: 32,
+    },
+    optionCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 12,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    optionText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      fontFamily: 'Manrope-Regular',
+    },
+    optionDesc: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      marginTop: 4,
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={dynamicStyles.container}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <View style={styles.backButtonCircle}>
-            <Ionicons name="chevron-back" size={24} color={TEXT_PRIMARY} />
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </View>
         </TouchableOpacity>
         <View style={{ width: 44 }} />
@@ -82,9 +137,9 @@ const ActivityLevelScreen = ({ navigation }) => {
       >
         <View style={styles.contentWrapper}>
           <View style={styles.header}>
-            <Text style={styles.subtitle}>DAILY ACTIVITY</Text>
-            <Text style={styles.title}>How active are you{'\n'}on a typical day?</Text>
-            <Text style={styles.description}>
+            <Text style={dynamicStyles.subtitle}>DAILY ACTIVITY</Text>
+            <Text style={dynamicStyles.title}>How active are you{'\n'}on a typical day?</Text>
+            <Text style={dynamicStyles.description}>
               This helps us calculate your daily calorie needs
             </Text>
           </View>
@@ -94,7 +149,7 @@ const ActivityLevelScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={option.label}
                 style={[
-                  styles.optionCard,
+                  dynamicStyles.optionCard,
                   selected === idx && styles.optionCardSelected
                 ]}
                 onPress={() => setSelected(idx)}
@@ -105,15 +160,15 @@ const ActivityLevelScreen = ({ navigation }) => {
                     colors={option.gradient}
                     style={styles.iconWrapper}
                   >
-                    {option.icon === 'weekend' && <MaterialIcons name="weekend" size={24} color={TEXT_PRIMARY} />}
-                    {option.icon === 'walking' && <FontAwesome5 name="walking" size={24} color={TEXT_PRIMARY} />}
-                    {option.icon === 'activity' && <Feather name="activity" size={24} color={TEXT_PRIMARY} />}
-                    {option.icon === 'running' && <FontAwesome5 name="running" size={24} color={TEXT_PRIMARY} />}
-                    {option.icon === 'sports-handball' && <MaterialIcons name="sports-handball" size={24} color={TEXT_PRIMARY} />}
+                    {option.icon === 'weekend' && <MaterialIcons name="weekend" size={24} color={colors.textPrimary} />}
+                    {option.icon === 'walking' && <FontAwesome5 name="walking" size={24} color={colors.textPrimary} />}
+                    {option.icon === 'activity' && <Feather name="activity" size={24} color={colors.textPrimary} />}
+                    {option.icon === 'running' && <FontAwesome5 name="running" size={24} color={colors.textPrimary} />}
+                    {option.icon === 'sports-handball' && <MaterialIcons name="sports-handball" size={24} color={colors.textPrimary} />}
                   </LinearGradient>
                   <View style={styles.optionTextContent}>
-                    <Text style={styles.optionText}>{option.label}</Text>
-                    <Text style={styles.optionDesc}>{option.desc}</Text>
+                    <Text style={dynamicStyles.optionText}>{option.label}</Text>
+                    <Text style={dynamicStyles.optionDesc}>{option.desc}</Text>
                     <View style={styles.progressBar}>
                       {option.progress.map((v, i) => (
                         <View

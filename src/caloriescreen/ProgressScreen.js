@@ -5,7 +5,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AdaptiveGoalEngine } from '../algorithms/AdaptiveGoalEngine';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 import { getFoodLogs } from '../utils/api';
 
@@ -267,6 +267,8 @@ function groupByDay(logs, start, end, rangeKey = null) {
 
 export default function ProgressScreen() {
   const navigation = useNavigation();
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const [activeRange, setActiveRange] = useState(RANGES[0]);
   const [activeMetric, setActiveMetric] = useState('calories');
   const [loading, setLoading] = useState(false);
@@ -287,9 +289,7 @@ export default function ProgressScreen() {
   const [userGoal, setUserGoal] = useState(() => globalProgressCache.cachedData?.userGoal || null);
   const [logsCount, setLogsCount] = useState(() => globalProgressCache.cachedData?.logsCount || 0);
   
-  // Adaptive goal system
-  const [adaptiveGoal, setAdaptiveGoal] = useState(null);
-  const [goalEngine, setGoalEngine] = useState(null);
+
 
   // Cache-first data fetching with useFocusEffect
   useFocusEffect(
@@ -369,37 +369,7 @@ export default function ProgressScreen() {
             .single();
           const userGoalValue = profile?.calorie_goal ? Number(profile.calorie_goal) : null;
           
-          // Initialize adaptive goal engine if we have user data
-          if (profile && !goalEngine) {
-            const userProfile = {
-              weight: profile.weight || 70, // Default weight if not set
-              height: profile.height || 170, // Default height if not set
-              age: profile.age || 25, // Default age if not set
-              gender: profile.gender || 'male',
-              activityLevel: profile.activity_level || 'moderate',
-              goal: profile.goal || 'weightLoss',
-              medicalConditions: [], // Could be fetched from another table
-              medications: [], // Could be fetched from another table
-              isBreastfeeding: false, // Could be fetched from profile
-              menstrualCycle: null, // Could be fetched from profile
-              history: [], // Will be populated with recent food logs
-              weightHistory: [] // Could be fetched from weight tracking table
-            };
-            
-            const engine = new AdaptiveGoalEngine(userProfile);
-            setGoalEngine(engine);
-            
-            // Generate adaptive goal for today
-            const todayCheckIn = {
-              sleepHours: 7, // Default - could be from daily check-in
-              stressLevel: 'medium', // Default - could be from daily check-in
-              energyLevel: 'medium', // Default - could be from daily check-in
-              situation: null // Could be from daily check-in
-            };
-            
-            const adaptiveGoalData = engine.generateDailyGoal(todayCheckIn);
-            setAdaptiveGoal(adaptiveGoalData);
-          }
+
           
           // Fetch all food logs with proper error handling
           let logs = [];
@@ -634,19 +604,19 @@ export default function ProgressScreen() {
   }, [activeRange, activeMetric]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom']}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <StatusBar style={isDark ? "light" : "dark"} />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.navigate('Home')} style={{ padding: 8 }}>
-          <Ionicons name="chevron-back" size={24} color="#333" />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Deep Insights</Text>
         <View style={{ width: 40 }} />
       </View>
       
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text style={{ color: '#333', fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Calories & Food Rituals</Text>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { padding: 16 }]}>
+        <Text style={styles.sectionTitle}>Calories & Food Rituals</Text>
 
         <View style={styles.rangeRow}>
           {RANGES.map(r => (
@@ -662,20 +632,20 @@ export default function ProgressScreen() {
           ))}
         </View>
 
-        <Text style={{ color: '#666', marginTop: 12 }}>
+        <Text style={styles.displayLabel}>
           {mainDisplayLabel}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 4 }}>
           {loading ? (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ color: '#7B61FF', fontSize: 16, fontWeight: '600' }}>Loading...</Text>
+              <Text style={[styles.loadingText, { color: colors.primary }]}>Loading...</Text>
             </View>
           ) : (
             <>
-              <Text style={{ color: '#333', fontSize: 34, fontWeight: '800' }}>
+              <Text style={styles.displayValue}>
                 {mainDisplayValue}
               </Text>
-              <Text style={{ color: '#666', marginLeft: 6, marginBottom: 4 }}>
+              <Text style={styles.metricLabel}>
                 {metricLabel}
               </Text>
             </>
@@ -697,7 +667,7 @@ export default function ProgressScreen() {
           ))}
         </View>
 
-        <View style={{ backgroundColor: '#F8FAFC', borderRadius: 16, paddingVertical: 8, marginTop: 12, borderWidth: 1, borderColor: '#E2E8F0' }}>
+        <View style={styles.chartContainer}>
           <LineChart
             data={{ 
               labels, 
@@ -706,23 +676,7 @@ export default function ProgressScreen() {
                   data: dataPoints.length ? dataPoints : [0], 
                   color: (opacity = 1) => `rgba(123,97,255,${opacity})` 
                 },
-                ...(activeMetric === 'calories' && adaptiveGoal && 
-                    (activeRange.key === 'this_week' || activeRange.key === 'last_week') ? 
-                  [
-                    { 
-                      data: new Array(dataPoints.length || 7).fill(adaptiveGoal.target), 
-                      color: (opacity = 1) => `rgba(14,165,233,${opacity})` 
-                    },
-                    { 
-                      data: new Array(dataPoints.length || 7).fill(adaptiveGoal.min), 
-                      color: (opacity = 1) => `rgba(14,165,233,${opacity * 0.3})` 
-                    },
-                    { 
-                      data: new Array(dataPoints.length || 7).fill(adaptiveGoal.max), 
-                      color: (opacity = 1) => `rgba(14,165,233,${opacity * 0.3})` 
-                    }
-                  ] : 
-                  activeMetric === 'calories' && userGoal && 
+                ...(activeMetric === 'calories' && userGoal && 
                     (activeRange.key === 'this_week' || activeRange.key === 'last_week') ? 
                   [{ 
                     data: new Array(dataPoints.length || 7).fill(userGoal), 
@@ -735,13 +689,19 @@ export default function ProgressScreen() {
             height={220}
             yAxisSuffix=""
             chartConfig={{
-              backgroundColor: '#F8FAFC',
-              backgroundGradientFrom: '#F8FAFC',
-              backgroundGradientTo: '#F8FAFC',
+              backgroundColor: colors.cardBackground,
+              backgroundGradientFrom: colors.cardBackground,
+              backgroundGradientTo: colors.cardBackground,
               decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(51, 51, 51, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(102, 102, 102, ${opacity})`,
-              propsForDots: { r: '3', strokeWidth: '1', stroke: '#7B61FF' },
+              color: (opacity = 1) => {
+                const rgb = isDark ? '255, 255, 255' : '51, 51, 51';
+                return `rgba(${rgb}, ${opacity})`;
+              },
+              labelColor: (opacity = 1) => {
+                const rgb = isDark ? '176, 176, 176' : '102, 102, 102';
+                return `rgba(${rgb}, ${opacity})`;
+              },
+              propsForDots: { r: '3', strokeWidth: '1', stroke: colors.primary },
             }}
             bezier
             withInnerLines={false}
@@ -791,7 +751,7 @@ export default function ProgressScreen() {
             <Text style={styles.statTitle}>Best Day</Text>
             <Text style={styles.statValue}>{Math.round(totals.best || 0)} {metricLabel}</Text>
             {totals.bestDate && (
-              <Text style={{ color: '#666', marginTop: 4 }}>
+              <Text style={styles.statDate}>
                 {(totals.bestDate.getMonth() + 1) + '/' + totals.bestDate.getDate()}
               </Text>
             )}
@@ -800,7 +760,7 @@ export default function ProgressScreen() {
             <Text style={styles.statTitle}>Worst Day</Text>
             <Text style={styles.statValue}>{Math.round(totals.worst || 0)} {metricLabel}</Text>
             {totals.worstDate && (
-              <Text style={{ color: '#666', marginTop: 4 }}>
+              <Text style={styles.statDate}>
                 {(totals.worstDate.getMonth() + 1) + '/' + totals.worstDate.getDate()}
               </Text>
             )}
@@ -814,7 +774,7 @@ export default function ProgressScreen() {
               size={18} 
               color={deltaPct >= 0 ? '#22C55E' : '#EF4444'} 
             />
-            <Text style={{ color: '#333', fontWeight: '700', marginLeft: 8 }}>
+            <Text style={styles.deltaText}>
               {activeRange.label} vs previous: {deltaPct >= 0 ? '+' : ''}{deltaPct.toFixed(1)}%
             </Text>
           </View>
@@ -822,7 +782,7 @@ export default function ProgressScreen() {
 
         {/* Adaptive Goal Display */}
         {adaptiveGoal && activeMetric === 'calories' && (
-          <View style={[styles.longCard, { marginTop: 16, backgroundColor: '#F0F9FF', borderColor: '#0EA5E9' }]}>
+          <View style={[styles.longCard, styles.adaptiveGoalCard, { marginTop: 16 }]}>
             <Ionicons name="target" size={20} color="#0EA5E9" />
             <View style={{ marginLeft: 8, flex: 1 }}>
               <Text style={[styles.statTitle, { color: '#0EA5E9', fontWeight: '700' }]}>
@@ -849,12 +809,12 @@ export default function ProgressScreen() {
 
         {(!daily || daily.length === 0) && !loading ? (
           <View style={styles.noDataCard}>
-            <Ionicons name="information-circle-outline" size={24} color="#7B61FF" />
+            <Ionicons name="information-circle-outline" size={24} color={colors.primary} />
             <Text style={styles.noDataText}>No food logs found for this period</Text>
             <Text style={styles.noDataSubtext}>Start logging your meals to see your progress here</Text>
           </View>
         ) : (
-          <Text style={{ color: '#666', marginTop: 16 }}>
+          <Text style={styles.footerText}>
             Your calorie intake is based on your logged meals for the selected period.
           </Text>
         )}
@@ -863,7 +823,14 @@ export default function ProgressScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollContent: {
+    backgroundColor: colors.background,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -872,25 +839,49 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: colors.border,
+    backgroundColor: colors.cardBackground,
   },
   headerTitle: {
-    color: '#333',
+    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
     flex: 1,
   },
+  sectionTitle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  displayLabel: {
+    color: colors.textSecondary,
+    marginTop: 12,
+  },
+  displayValue: {
+    color: colors.textPrimary,
+    fontSize: 34,
+    fontWeight: '800',
+  },
+  metricLabel: {
+    color: colors.textSecondary,
+    marginLeft: 6,
+    marginBottom: 4,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
   rangeRow: {
     flexDirection: 'row',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 6,
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   rangeBtn: {
     flex: 1,
@@ -899,31 +890,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rangeBtnActive: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: colors.primary,
   },
-  rangeText: { color: '#666', fontWeight: '600' },
+  rangeText: { color: colors.textSecondary, fontWeight: '600' },
   rangeTextActive: { color: '#fff', fontWeight: '800' },
   statCard: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 16,
     marginRight: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
-  statTitle: { color: '#666', marginBottom: 6 },
-  statValue: { color: '#333', fontSize: 24, fontWeight: '800' },
+  statTitle: { color: colors.textSecondary, marginBottom: 6 },
+  statValue: { color: colors.textPrimary, fontSize: 24, fontWeight: '800' },
+  statDate: {
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
   metricRow: {
     flexDirection: 'row',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 6,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   metricBtn: {
     flex: 1,
@@ -931,60 +926,81 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
   },
-  metricBtnActive: { backgroundColor: '#7B61FF' },
-  metricText: { color: '#666', fontWeight: '600', fontSize: 13 },
+  metricBtnActive: { backgroundColor: colors.primary },
+  metricText: { color: colors.textSecondary, fontWeight: '600', fontSize: 13 },
   metricTextActive: { color: '#fff', fontWeight: '800' },
+  chartContainer: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    paddingVertical: 8,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   longCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 16,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
+  },
+  deltaText: {
+    color: colors.textPrimary,
+    fontWeight: '700',
+    marginLeft: 8,
   },
   noDataCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 20,
     marginTop: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   noDataText: {
-    color: '#333',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
     marginTop: 8,
     textAlign: 'center',
   },
   noDataSubtext: {
-    color: '#666',
+    color: colors.textSecondary,
     fontSize: 14,
     marginTop: 4,
     textAlign: 'center',
   },
   dataSummaryCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 16,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   dataSummaryTitle: {
-    color: '#7B61FF',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 8,
     textAlign: 'center',
   },
   dataSummaryText: {
-    color: '#666',
+    color: colors.textSecondary,
     fontSize: 13,
     marginBottom: 4,
     textAlign: 'center',
+  },
+  footerText: {
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  adaptiveGoalCard: {
+    backgroundColor: isDark ? '#1A2A3E' : '#F0F9FF',
+    borderColor: '#0EA5E9',
   },
 });

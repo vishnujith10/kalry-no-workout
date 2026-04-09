@@ -5,6 +5,7 @@ import React, { useContext, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 
 // Modern Fitness Light Mode Palette
 const LIGHT_BG = '#F8F9FE';
@@ -24,6 +25,7 @@ const options = [
 
 const TimePerDayScreen = ({ navigation }) => {
   const { onboardingData, setOnboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
   const [selected, setSelected] = useState(null);
 
   const handleNext = (spendingTime) => {
@@ -34,13 +36,61 @@ const TimePerDayScreen = ({ navigation }) => {
     navigation.navigate('WorkoutPreferences');
   };
 
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    subtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      letterSpacing: 2,
+      fontWeight: '600',
+      marginBottom: 6,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      fontFamily: 'Lexend-Bold',
+      letterSpacing: -0.5,
+      marginBottom: 8,
+      lineHeight: 34,
+    },
+    description: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      lineHeight: 24,
+      marginBottom: 32,
+    },
+    optionCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 12,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    optionText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      fontFamily: 'Manrope-Regular',
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={dynamicStyles.container}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <View style={styles.backButtonCircle}>
-            <Ionicons name="chevron-back" size={24} color={TEXT_PRIMARY} />
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </View>
         </TouchableOpacity>
         <View style={{ width: 44 }} />
@@ -53,9 +103,9 @@ const TimePerDayScreen = ({ navigation }) => {
       >
         <View style={styles.contentWrapper}>
           <View style={styles.header}>
-            <Text style={styles.subtitle}>DAILY COMMITMENT</Text>
-            <Text style={styles.title}>How much time{'\n'}can you give?</Text>
-            <Text style={styles.description}>
+            <Text style={dynamicStyles.subtitle}>DAILY COMMITMENT</Text>
+            <Text style={dynamicStyles.title}>How much time{'\n'}can you give?</Text>
+            <Text style={dynamicStyles.description}>
               Choose a time range that fits your schedule
             </Text>
           </View>
@@ -65,7 +115,7 @@ const TimePerDayScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={option.label}
                 style={[
-                  styles.optionCard,
+                  dynamicStyles.optionCard,
                   selected === idx && styles.optionCardSelected
                 ]}
                 onPress={() => setSelected(idx)}
@@ -79,10 +129,10 @@ const TimePerDayScreen = ({ navigation }) => {
                     <MaterialIcons 
                       name={option.icon} 
                       size={24} 
-                      color={TEXT_PRIMARY} 
+                      color={colors.textPrimary} 
                     />
                   </LinearGradient>
-                  <Text style={styles.optionText}>
+                  <Text style={dynamicStyles.optionText}>
                     {option.label}
                   </Text>
                   {selected === idx ? (

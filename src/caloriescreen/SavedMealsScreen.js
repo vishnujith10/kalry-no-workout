@@ -1,8 +1,10 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useState } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, FlatList, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 
 // Global cache for saved meals data
@@ -26,6 +28,8 @@ const placeholderImg = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63
 
 const SavedMealsScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   // Initialize state with cached data (Instagram pattern)
   const [meals, setMeals] = useState(() => globalSavedMealsCache.cachedData?.meals || []);
   const [search, setSearch] = useState('');
@@ -291,17 +295,17 @@ const SavedMealsScreen = ({ navigation, route }) => {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: 0 }} edges={['top']}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar style={isDark ? "light" : "dark"} />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.navigate('Home')} style={{ marginRight: 12 }}>
-        <Ionicons name="chevron-back" size={24} color="black" />
+        <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Saved Meals</Text>
         <View style={styles.headerAddBtn} />
       </View>
       <View style={styles.filterRow}>
-        <TouchableOpacity style={styles.filterBtn}><Ionicons name="filter" size={18} color="#666" /><Text style={styles.filterText}>Filters</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.filterBtn}><Ionicons name="filter" size={18} color={colors.textSecondary} /><Text style={styles.filterText}>Filters</Text></TouchableOpacity>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1, marginLeft: 8 }}>
           {FILTERS.map(f => (
             <TouchableOpacity
@@ -319,7 +323,7 @@ const SavedMealsScreen = ({ navigation, route }) => {
         <TextInput
           style={styles.searchBar}
           placeholder="Search"
-          placeholderTextColor="#B0B0B0"
+          placeholderTextColor={colors.textMuted}
           value={search}
           onChangeText={setSearch}
         />
@@ -336,47 +340,182 @@ const SavedMealsScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 8, paddingHorizontal: 20, backgroundColor: '#fff' },
-  headerTitle: { fontSize: 26, fontWeight: 'bold', color: '#181A20', flex: 1, textAlign: 'center' },
+const createStyles = (colors, isDark) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingTop: 0,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    paddingBottom: 8,
+    paddingHorizontal: 20,
+    backgroundColor: colors.background,
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    flex: 1,
+    textAlign: 'center',
+  },
   headerAddBtn: { padding: 4 },
-  filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 16, marginTop: 8 },
-  filterBtn: { flexDirection: 'row', alignItems: 'center', marginRight: 8 },
-  filterText: { fontSize: 16, color: '#666', marginLeft: 4 },
-  chip: { backgroundColor: '#F3F4F6', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 },
-  chipActive: { backgroundColor: '#3B82F6' },
-  chipText: { color: '#222', fontSize: 15 },
-  chipTextActive: { color: '#fff', fontWeight: 'bold' },
-  smartSortBtn: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
-  smartSortText: { color: '#4F46E5', fontWeight: 'bold', marginLeft: 4 },
-  grid: { paddingHorizontal: 14, paddingBottom: 32, paddingTop: 8 },
-  mealCard: { backgroundColor: '#fff', borderRadius: 20, margin: 8, flex: 1, minWidth: 160, maxWidth: '48%', padding: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  imageWrap: { position: 'relative', alignItems: 'center', marginBottom: 8 },
-  mealImg: { width: '100%', height: 110, borderRadius: 16, resizeMode: 'cover' },
-  deleteBtn: { position: 'absolute', top: 8, right: 8, backgroundColor: '#222', borderRadius: 16, padding: 4, zIndex: 2 },
-  mealName: { fontSize: 18, fontWeight: 'bold', color: '#181A20', marginBottom: 4, marginTop: 2 },
-  kcalRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  kcalText: { fontSize: 15, color: '#FF9100', fontWeight: 'bold', marginLeft: 4 },
-  macrosRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  macroItem: { flexDirection: 'row', alignItems: 'center', marginRight: 8 },
-  macroText: { fontSize: 14, color: '#222', marginLeft: 4 },
-  addToPlanBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3B82F6', borderRadius: 12, paddingVertical: 10, justifyContent: 'center', marginTop: 4 },
-  addToPlanText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  filterText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  chip: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    color: colors.textPrimary,
+    fontSize: 15,
+  },
+  chipTextActive: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  smartSortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  smartSortText: {
+    color: colors.primary,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  grid: {
+    paddingHorizontal: 14,
+    paddingBottom: 32,
+    paddingTop: 8,
+  },
+  mealCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 20,
+    margin: 8,
+    flex: 1,
+    minWidth: 160,
+    maxWidth: '48%',
+    padding: 12,
+    shadowColor: colors.shadow,
+    shadowOpacity: isDark ? 0.3 : 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  imageWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  mealImg: {
+    width: '100%',
+    height: 110,
+    borderRadius: 16,
+    resizeMode: 'cover',
+  },
+  deleteBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#222',
+    borderRadius: 16,
+    padding: 4,
+    zIndex: 2,
+  },
+  mealName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 4,
+    marginTop: 2,
+  },
+  kcalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  kcalText: {
+    fontSize: 15,
+    color: '#FF9100',
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  macrosRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  macroItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  macroText: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    marginLeft: 4,
+  },
+  addToPlanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  addToPlanText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   searchBarWrap: {
     paddingHorizontal: 20,
     marginBottom: 12,
   },
   searchBar: {
-    backgroundColor: '#F6F6F8',
+    backgroundColor: colors.cardBackground,
     borderRadius: 18,
     paddingHorizontal: 18,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#222',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
+    color: colors.textPrimary,
+    shadowColor: colors.shadow,
+    shadowOpacity: isDark ? 0.2 : 0.03,
     shadowRadius: 4,
     elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
 });
 

@@ -17,7 +17,9 @@ export async function getUserStreaks(userId) {
     }
 
     if (error) {
-      console.error('Error fetching streaks:', error);
+      if (error.code !== 'PGRST205') {
+        console.error('Error fetching streaks:', error);
+      }
       return null;
     }
 

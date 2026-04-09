@@ -312,6 +312,70 @@ export async function getTodayCaloriesBurned(userId, userProfile, date = new Dat
 }
 
 /**
+ * Calculate complete calorie profile (BMR, TDEE, calorie goal, and macro targets)
+ * @param {Object} params - User parameters
+ * @param {number} params.age - User age
+ * @param {string} params.gender - User gender ('male' or 'female')
+ * @param {number} params.weight_kg - User weight in kg
+ * @param {number} params.height_cm - User height in cm
+ * @param {string} params.activity_level - Activity level ('sedentary', 'light', 'moderate', 'very', 'extra')
+ * @param {string} params.goal_type - Goal type ('lose', 'gain', 'maintain')
+ * @returns {Object} { bmr, tdee, calorie_goal, macro_targets: { protein_g, fat_g, carbs_g } }
+ */
+export function calculateCalorieProfile({ age, gender, weight_kg, height_cm, activity_level, goal_type }) {
+  // Calculate BMR (Basal Metabolic Rate) using Mifflin-St Jeor Equation
+  const bmr = gender === 'male'
+    ? 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
+    : 10 * weight_kg + 6.25 * height_cm - 5 * age - 161;
+  
+  // Calculate TDEE (Total Daily Energy Expenditure) based on activity level
+  const activityMultipliers = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    very: 1.725,
+    extra: 1.9,
+  };
+  
+  const multiplier = activityMultipliers[activity_level] || 1.2;
+  const tdee = bmr * multiplier;
+  
+  // Adjust calorie goal based on goal type
+  let calorie_goal;
+  switch (goal_type) {
+    case 'lose':
+      calorie_goal = tdee * 0.85; // 15% deficit
+      break;
+    case 'gain':
+      calorie_goal = tdee * 1.1; // 10% surplus
+      break;
+    default: // maintain
+      calorie_goal = tdee;
+  }
+  
+  // Ensure minimum calories (safety)
+  const minCalories = gender === 'male' ? 1500 : 1200;
+  calorie_goal = Math.max(calorie_goal, minCalories);
+  
+  // Calculate macro targets (30% protein, 30% fat, 40% carbs)
+  const macro_targets = {
+    protein_g: Math.round((calorie_goal * 0.3) / 4),
+    fat_g: Math.round((calorie_goal * 0.3) / 9),
+    carbs_g: Math.round((calorie_goal * 0.4) / 4),
+  };
+  
+  return {
+    bmr: Math.round(bmr),
+    tdee: Math.round(tdee),
+    calorie_goal: Math.round(calorie_goal),
+    macro_targets,
+  };
+}
+
+// Export as default for backward compatibility
+export default calculateCalorieProfile;
+
+/**
  * Update step calories in database with personalized calculation
  * @param {string} userId - User ID
  * @param {number} steps - Number of steps

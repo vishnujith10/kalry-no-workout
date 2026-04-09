@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   BackHandler,
@@ -23,9 +23,9 @@ import Animated, {
   withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CompassionateFeedbackEngine } from "../algorithms/CompassionateFeedbackEngine";
-import { DataSyncEngine } from "../algorithms/DataSyncEngine";
+
 import { OnboardingContext } from "../context/OnboardingContext";
+import { useTheme } from '../context/ThemeContext';
 import supabase from "../lib/supabase";
 import { createFoodLog, deleteFoodLog, getFoodLogs } from "../utils/api";
 import { getHomeScreenCache, invalidateHomeScreenCache, updateHomeScreenCacheOptimistic } from "../utils/cacheManager";
@@ -57,7 +57,7 @@ try {
 }
 
 // Username cache to prevent re-fetching
-const userNameCache = {
+export const userNameCache = {
   lastFetch: 0,
   cachedName: null,
   CACHE_DURATION: 300000, // 5 minutes
@@ -67,7 +67,7 @@ const userNameCache = {
 export { invalidateHomeScreenCache, updateHomeScreenCacheOptimistic as updateHomeScreenCache };
 
 // Memoized Header Component to prevent re-renders
-const HomeHeader = React.memo(({ userName, selectedDate, navigation }) => {
+const HomeHeader = React.memo(({ userName, selectedDate, navigation, styles, palette, themeKey }) => {
   return (
     <View style={styles.header}>
       <View>
@@ -85,13 +85,13 @@ const HomeHeader = React.memo(({ userName, selectedDate, navigation }) => {
           style={styles.headerButton} 
           onPress={() => navigation.navigate('ProgressScreen')}
         >
-          <Ionicons name="stats-chart-outline" size={24} color="#7B61FF" />
+          <Ionicons name="stats-chart-outline" size={24} color={palette.primary} />
         </TouchableOpacity>
         <TouchableOpacity 
           onPress={() => navigation.navigate('Exercise')} 
           style={styles.headerButton}
         >
-          <Ionicons name="barbell-outline" size={24} color="#7B61FF" />
+          <Ionicons name="barbell-outline" size={24} color={palette.primary} />
         </TouchableOpacity>
       </View>
     </View>
@@ -99,12 +99,13 @@ const HomeHeader = React.memo(({ userName, selectedDate, navigation }) => {
 }, (prevProps, nextProps) => {
   // Only re-render if userName or selectedDate actually changed
   return prevProps.userName === nextProps.userName && 
-         prevProps.selectedDate.getTime() === nextProps.selectedDate.getTime();
+         prevProps.selectedDate.getTime() === nextProps.selectedDate.getTime() &&
+         prevProps.themeKey === nextProps.themeKey;
 });
 HomeHeader.displayName = 'HomeHeader';
 
 // Memoized Streak Badge Component
-const StreakBadge = React.memo(({ calorieStreak }) => {
+const StreakBadge = React.memo(({ calorieStreak, styles, themeKey }) => {
   return (
     <View style={styles.streakBadge}>
       <Text style={styles.streakEmoji}>🔥</Text>
@@ -115,37 +116,38 @@ const StreakBadge = React.memo(({ calorieStreak }) => {
   );
 }, (prevProps, nextProps) => {
   // Only re-render if streak value changed
-  return prevProps.calorieStreak === nextProps.calorieStreak;
+  return prevProps.calorieStreak === nextProps.calorieStreak &&
+         prevProps.themeKey === nextProps.themeKey;
 });
 StreakBadge.displayName = 'StreakBadge';
 
 // Add FooterBar component (same as MainDashboard)
-const FooterBar = ({ navigation, activeTab }) => {
+const FooterBar = ({ navigation, activeTab, footerStyles, palette, themeKey }) => {
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
   const tabs = [
     {
       key: 'Home',
       label: 'Home',
-      icon: <Ionicons name="home-outline" size={24} color={activeTab === 'Home' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="home-outline" size={24} color={activeTab === 'Home' ? palette.primary : palette.navInactive} />,
       route: 'MainDashboard',
     },
     
     {
       key: 'Meals',
       label: 'Meals',
-      icon: <Ionicons name="restaurant-outline" size={24} color={activeTab === 'Meals' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="restaurant-outline" size={24} color={activeTab === 'Meals' ? palette.primary : palette.navInactive} />,
       route: 'Home',
     },
     {
       key: 'Workout',
       label: 'Saved',
-      icon: <Ionicons name="fast-food-outline" size={24} color={activeTab === 'Workout' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="fast-food-outline" size={24} color={activeTab === 'Workout' ? palette.primary : palette.navInactive} />,
       route: 'SavedMealsScreen',
     },
     {
       key: 'Profile',
       label: 'Profile',
-      icon: <Ionicons name="person-outline" size={24} color={activeTab === 'Profile' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="person-outline" size={24} color={activeTab === 'Profile' ? palette.primary : palette.navInactive} />,
       route: 'Profile',
     },
   ];
@@ -169,7 +171,7 @@ const FooterBar = ({ navigation, activeTab }) => {
             activeOpacity={0.7}
           >
             {React.cloneElement(tab.icon, {
-              color: tab.key === activeTab ? '#7B61FF' : '#232B3A',
+              color: tab.key === activeTab ? palette.primary : palette.navInactive,
             })}
             <Text
               style={[
@@ -188,7 +190,7 @@ const FooterBar = ({ navigation, activeTab }) => {
 };
 
 // Simple Plus Icon Component with Camera Above
-const AnimatedPlusIcon = ({ navigation }) => {
+const AnimatedPlusIcon = ({ navigation, plusStyles, palette }) => {
   const insets = useSafeAreaInsets();
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -272,7 +274,7 @@ const AnimatedPlusIcon = ({ navigation }) => {
       {/* Voice Icon */}
       <Animated.View style={[plusStyles.expandedIcon, voiceAnimatedStyle]}>
         <TouchableOpacity
-          style={[plusStyles.iconButton, { backgroundColor: '#7B61FF' }]}
+          style={[plusStyles.iconButton, { backgroundColor: palette.primary }]}
           onPress={handleVoicePress}
           activeOpacity={0.8}
         >
@@ -283,7 +285,7 @@ const AnimatedPlusIcon = ({ navigation }) => {
       {/* Text Icon */}
       <Animated.View style={[plusStyles.expandedIcon, textAnimatedStyle]}>
         <TouchableOpacity
-          style={[plusStyles.iconButton, { backgroundColor: '#A084E8' }]}
+          style={[plusStyles.iconButton, { backgroundColor: palette.secondary }]}
           onPress={handleTextPress}
           activeOpacity={0.8}
         >
@@ -339,6 +341,21 @@ function getCurrentWeekDates() {
 
 const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets(); // For ScrollView padding
+  const { colors, isDark } = useTheme();
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const themeKey = isDark ? 'dark' : 'light';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const footerStyles = useMemo(() => createFooterStyles(palette), [palette]);
+  const plusStyles = useMemo(() => createPlusStyles(palette), [palette]);
+  const accentIconColor = isDark ? '#A1A6C2' : '#A9A9A9';
+  const selectionBackground = isDark ? 'rgba(255,59,48,0.12)' : '#FFF3F3';
+  const mealImageBackground = isDark ? '#2B2C3F' : '#F3F0FF';
+  const nutritionBackgrounds = {
+    protein: isDark ? 'rgba(34,197,94,0.12)' : '#E6F7EC',
+    carbs: isDark ? 'rgba(255,145,0,0.12)' : '#FFF2E2',
+    fat: isDark ? 'rgba(160,132,232,0.15)' : '#EEE8FF',
+    fiber: isDark ? 'rgba(40,167,69,0.12)' : '#E8F5E8',
+  };
   const [weekDates, setWeekDates] = useState(getCurrentWeekDates());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [user, setUser] = useState({ id: null });
@@ -874,29 +891,9 @@ const HomeScreen = ({ navigation }) => {
       await createFoodLog(logData);
       fetchFoodLogs(selectedDate);
       
-      // Auto-save the food log for crash recovery
-      const syncEngine = new DataSyncEngine();
-      syncEngine.autoSave(logData, `food_log_${Date.now()}`);
-      
-      // Generate compassionate feedback
-      const feedbackEngine = new CompassionateFeedbackEngine();
-      const foodData = {
-        name: nutritionData.food_name,
-        calories: nutritionData.calories,
-        protein: nutritionData.protein || 0,
-        carbs: nutritionData.carbs || 0,
-        fat: nutritionData.fat || 0,
-        fiber: 0, // Could be added to nutrition data
-        micronutrients: {}, // Could be enhanced
-        category: 'meal' // Could be determined from food type
-      };
-      
-      const feedback = feedbackEngine.generateFoodFeedback(foodData);
-      
-      // Show compassionate feedback instead of generic success message
       Alert.alert(
         "Food Logged! 🍽️",
-        feedback.message,
+        "Your meal has been successfully logged.",
         [{ text: "Great!", style: "default" }]
       );
       
@@ -979,7 +976,7 @@ const HomeScreen = ({ navigation }) => {
     <View style={styles.mealSection}>
       <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
         <View style={styles.mealIconContainer}>
-          <Ionicons name={iconName} size={20} color="#7B61FF" />
+        <Ionicons name={iconName} size={20} color={palette.primary} />
         </View>
         <View>
           <Text style={styles.mealTitle}>{mealType}</Text>
@@ -991,13 +988,13 @@ const HomeScreen = ({ navigation }) => {
           style={styles.mealButton}
           onPress={() => showImagePickerOptions(mealType)}
         >
-          <Ionicons name="camera-outline" size={24} color="#A9A9A9" />
+          <Ionicons name="camera-outline" size={24} color={accentIconColor} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.mealButton}
           onPress={() => openVoiceModal(mealType)}
         >
-          <Ionicons name="mic-outline" size={24} color="#A9A9A9" />
+          <Ionicons name="mic-outline" size={24} color={accentIconColor} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.mealButton, styles.mealAddButton]}
@@ -1029,7 +1026,14 @@ const HomeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="auto" />
       <ScrollView showsVerticalScrollIndicator={false}>
-      <HomeHeader userName={userName} selectedDate={selectedDate} navigation={navigation} />
+      <HomeHeader
+        userName={userName}
+        selectedDate={selectedDate}
+        navigation={navigation}
+        styles={styles}
+        palette={palette}
+        themeKey={themeKey}
+      />
 
         <View
           style={{
@@ -1066,10 +1070,10 @@ const HomeScreen = ({ navigation }) => {
                 <View
                   style={{
                     backgroundColor: isSelected
-                      ? "#7B61FF"
+                      ? palette.primary
                       : isFutureDate
-                      ? "#F0F0F0"
-                      : "#F6F6F6",
+                      ? palette.border
+                      : palette.highlight,
                     borderRadius: 24,
                     paddingVertical: 8,
                     paddingHorizontal: 0,
@@ -1082,8 +1086,8 @@ const HomeScreen = ({ navigation }) => {
                       color: isSelected
                         ? "#fff"
                         : isFutureDate
-                        ? "#CCC"
-                        : "#888",
+                        ? palette.disabledText
+                        : palette.textSecondary,
                       fontFamily: "Lexend-SemiBold",
                       fontSize: 14,
                       textAlign: "center",
@@ -1096,8 +1100,8 @@ const HomeScreen = ({ navigation }) => {
                       color: isSelected
                         ? "#fff"
                         : isFutureDate
-                        ? "#CCC"
-                        : "#222",
+                        ? palette.disabledText
+                        : palette.textPrimary,
                       fontFamily: "Lexend-Bold",
                       fontSize: 18,
                       textAlign: "center",
@@ -1115,7 +1119,7 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.summaryHeader}>
             <Text style={styles.cardTitle}>Today&apos;s Summary</Text>
             <TouchableOpacity style={styles.dateChip}>
-              <Ionicons name="calendar-outline" size={16} color="#7B61FF" />
+              <Ionicons name="calendar-outline" size={16} color={palette.primary} />
               <Text style={styles.dateChipText}>
                 {selectedDate.toLocaleDateString("en-US", {
                   month: "short",
@@ -1141,10 +1145,9 @@ const HomeScreen = ({ navigation }) => {
                 strokeWidth={10}
                 radius={40}
                 chartConfig={{
-                  backgroundGradientFrom: "#fff",
-                  backgroundGradientTo: "#fff",
-                  color: (opacity = 1, _index) =>
-                    `rgba(123, 97, 255, ${opacity})`,
+                  backgroundGradientFrom: palette.card,
+                  backgroundGradientTo: palette.card,
+                  color: () => palette.primary,
                   propsForLabels: {
                     fontSize: 0,
                   },
@@ -1167,7 +1170,7 @@ const HomeScreen = ({ navigation }) => {
                 <Text style={styles.pillValueBalance}>{balanceDisplay}</Text>
               </View>
             </View>
-            <StreakBadge calorieStreak={calorieStreak} />
+            <StreakBadge calorieStreak={calorieStreak} styles={styles} themeKey={themeKey} />
           </View>
         </View>
 
@@ -1178,7 +1181,7 @@ const HomeScreen = ({ navigation }) => {
                 <Ionicons
                   name="barbell"
                   size={28}
-                  color="#222"
+                  color={palette.textPrimary}
                   style={styles.macroIconLarge}
                 />
                 <Text style={styles.macroTitle}>Protein</Text>
@@ -1196,7 +1199,7 @@ const HomeScreen = ({ navigation }) => {
                 <Ionicons
                   name="nutrition"
                   size={28}
-                  color="#222"
+                  color={palette.textPrimary}
                   style={styles.macroIconLarge}
                 />
                 <Text style={styles.macroTitle}>Carbs</Text>
@@ -1216,7 +1219,7 @@ const HomeScreen = ({ navigation }) => {
                 <Ionicons
                   name="leaf"
                   size={28}
-                  color="#222"
+                  color={palette.textPrimary}
                   style={styles.macroIconLarge}
                 />
                 <Text style={styles.macroTitle}>Fat</Text>
@@ -1234,7 +1237,7 @@ const HomeScreen = ({ navigation }) => {
                 <Ionicons
                   name="restaurant"
                   size={28}
-                  color="#222"
+                  color={palette.textPrimary}
                   style={styles.macroIconLarge}
                 />
                 <Text style={styles.macroTitle}>Fiber</Text>
@@ -1256,7 +1259,7 @@ const HomeScreen = ({ navigation }) => {
               style={{
                 fontFamily: "Lexend-SemiBold",
                 fontSize: 18,
-                color: "#181A20",
+                color: palette.textPrimary,
               }}
             >
               Recent Meals
@@ -1265,7 +1268,7 @@ const HomeScreen = ({ navigation }) => {
               <TouchableOpacity
                 onPress={handleDeleteSelected}
                 style={{
-                  backgroundColor: '#FF3B30',
+                  backgroundColor: palette.destructive,
                   borderRadius: 20,
                   paddingHorizontal: 16,
                   paddingVertical: 8,
@@ -1286,7 +1289,7 @@ const HomeScreen = ({ navigation }) => {
               style={{
                 fontFamily: "Manrope-Regular",
                 fontSize: 15,
-                color: "#888",
+                color: palette.textSecondary,
               }}
             >
               No meals logged yet today.
@@ -1299,17 +1302,17 @@ const HomeScreen = ({ navigation }) => {
                   onPress={() => handleMealPress(meal.id, i)}
                   onLongPress={() => handleMealLongPress(meal.id)}
                   style={{
-                    backgroundColor: selectedMeals.has(meal.id) ? "#FFF3F3" : "#fff",
+                    backgroundColor: selectedMeals.has(meal.id) ? selectionBackground : palette.card,
                     borderRadius: 16,
                     padding: 12,
-                    shadowColor: "#000",
+                    shadowColor: palette.shadow,
                     shadowOffset: { width: 0, height: 4 },
                     shadowOpacity: 0.06,
                     shadowRadius: 10,
                     elevation: 4,
                     transform: [{ scale: expandedMeal === i ? 1.02 : 1 }],
                     borderWidth: selectedMeals.has(meal.id) ? 2 : 0,
-                    borderColor: selectedMeals.has(meal.id) ? "#FF3B30" : "transparent",
+                    borderColor: selectedMeals.has(meal.id) ? palette.destructive : "transparent",
                   }}
                   activeOpacity={0.8}
                 >
@@ -1322,7 +1325,7 @@ const HomeScreen = ({ navigation }) => {
                           width: 60,
                           height: 60,
                           borderRadius: 12,
-                          backgroundColor: "#F3F0FF",
+                          backgroundColor: mealImageBackground,
                         }}
                       />
                     ) : (
@@ -1334,7 +1337,7 @@ const HomeScreen = ({ navigation }) => {
                           width: 60,
                           height: 60,
                           borderRadius: 12,
-                          backgroundColor: "#F3F0FF",
+                          backgroundColor: mealImageBackground,
                         }}
                         defaultSource={{
                           uri: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop",
@@ -1348,7 +1351,7 @@ const HomeScreen = ({ navigation }) => {
                         style={{
                           fontFamily: "Lexend-SemiBold",
                           fontSize: 16,
-                          color: "#181A20",
+                          color: palette.textPrimary,
                           marginBottom: 4,
                         }}
                         numberOfLines={1}
@@ -1360,7 +1363,7 @@ const HomeScreen = ({ navigation }) => {
                         style={{
                           fontFamily: "Manrope-Regular",
                           fontSize: 14,
-                          color: "#666",
+                          color: palette.textSecondary,
                         }}
                       >
                         {meal.calories ? `${meal.calories} kcal` : "-- kcal"}
@@ -1373,7 +1376,7 @@ const HomeScreen = ({ navigation }) => {
                         <Ionicons
                           name={selectedMeals.has(meal.id) ? "checkmark-circle" : "ellipse-outline"}
                           size={24}
-                          color={selectedMeals.has(meal.id) ? "#FF3B30" : "#CCC"}
+                          color={selectedMeals.has(meal.id) ? palette.destructive : palette.border}
                         />
                       </View>
                     )}
@@ -1386,14 +1389,14 @@ const HomeScreen = ({ navigation }) => {
                         marginTop: 12,
                         paddingTop: 12,
                         borderTopWidth: 1,
-                        borderTopColor: "#F0F0F0",
+                        borderTopColor: palette.border,
                       }}
                     >
                       <Text
                         style={{
                           fontFamily: "Lexend-SemiBold",
                           fontSize: 14,
-                          color: "#181A20",
+                          color: palette.textPrimary,
                           marginBottom: 8,
                         }}
                       >
@@ -1409,7 +1412,7 @@ const HomeScreen = ({ navigation }) => {
                         <View
                           style={{
                             alignItems: "center",
-                            backgroundColor: "#E6F7EC",
+                            backgroundColor: nutritionBackgrounds.protein,
                             borderRadius: 8,
                             padding: 8,
                             minWidth: "22%",
@@ -1420,7 +1423,7 @@ const HomeScreen = ({ navigation }) => {
                             style={{
                               fontFamily: "Manrope-Bold",
                               fontSize: 12,
-                              color: "#22C55E",
+                              color: palette.success,
                             }}
                           >
                             Protein
@@ -1429,7 +1432,7 @@ const HomeScreen = ({ navigation }) => {
                             style={{
                               fontFamily: "Lexend-SemiBold",
                               fontSize: 14,
-                              color: "#22C55E",
+                              color: palette.success,
                             }}
                           >
                             {meal.protein || 0}g
@@ -1439,7 +1442,7 @@ const HomeScreen = ({ navigation }) => {
                         <View
                           style={{
                             alignItems: "center",
-                            backgroundColor: "#FFF2E2",
+                            backgroundColor: nutritionBackgrounds.carbs,
                             borderRadius: 8,
                             padding: 8,
                             minWidth: "22%",
@@ -1450,7 +1453,7 @@ const HomeScreen = ({ navigation }) => {
                             style={{
                               fontFamily: "Manrope-Bold",
                               fontSize: 12,
-                              color: "#FF9100",
+                              color: palette.warning,
                             }}
                           >
                             Carbs
@@ -1459,7 +1462,7 @@ const HomeScreen = ({ navigation }) => {
                             style={{
                               fontFamily: "Lexend-SemiBold",
                               fontSize: 14,
-                              color: "#FF9100",
+                              color: palette.warning,
                             }}
                           >
                             {meal.carbs || 0}g
@@ -1469,7 +1472,7 @@ const HomeScreen = ({ navigation }) => {
                         <View
                           style={{
                             alignItems: "center",
-                            backgroundColor: "#EEE8FF",
+                            backgroundColor: nutritionBackgrounds.fat,
                             borderRadius: 8,
                             padding: 8,
                             minWidth: "22%",
@@ -1480,7 +1483,7 @@ const HomeScreen = ({ navigation }) => {
                             style={{
                               fontFamily: "Manrope-Bold",
                               fontSize: 12,
-                              color: "#A084E8",
+                              color: palette.secondary,
                             }}
                           >
                             Fat
@@ -1489,7 +1492,7 @@ const HomeScreen = ({ navigation }) => {
                             style={{
                               fontFamily: "Lexend-SemiBold",
                               fontSize: 14,
-                              color: "#A084E8",
+                              color: palette.secondary,
                             }}
                           >
                             {meal.fat || 0}g
@@ -1499,7 +1502,7 @@ const HomeScreen = ({ navigation }) => {
                         <View
                           style={{
                             alignItems: "center",
-                            backgroundColor: "#E8F5E8",
+                            backgroundColor: nutritionBackgrounds.fiber,
                             borderRadius: 8,
                             padding: 8,
                             minWidth: "22%",
@@ -1510,7 +1513,7 @@ const HomeScreen = ({ navigation }) => {
                             style={{
                               fontFamily: "Manrope-Bold",
                               fontSize: 12,
-                              color: "#28a745",
+                              color: palette.success,
                             }}
                           >
                             Fiber
@@ -1519,7 +1522,7 @@ const HomeScreen = ({ navigation }) => {
                             style={{
                               fontFamily: "Lexend-SemiBold",
                               fontSize: 14,
-                              color: "#28a745",
+                              color: palette.success,
                             }}
                           >
                             {meal.fiber || 0}g
@@ -1536,18 +1539,46 @@ const HomeScreen = ({ navigation }) => {
       </ScrollView>
       
       {/* Footer Bar */}
-      <FooterBar navigation={navigation} activeTab="Meals" />
+      <FooterBar navigation={navigation} activeTab="Meals" footerStyles={footerStyles} palette={palette} themeKey={themeKey} />
       
       {/* Animated Plus Icon with Camera Above */}
-      <AnimatedPlusIcon navigation={navigation} />
+      <AnimatedPlusIcon navigation={navigation} plusStyles={plusStyles} palette={palette} />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (colors, isDark) => ({
+  primary: colors.primary,
+  secondary: '#A084E8',
+  background: colors.background,
+  card: colors.cardBackground,
+  textPrimary: colors.textPrimary,
+  textSecondary: colors.textSecondary,
+  textMuted: colors.textMuted,
+  border: colors.border,
+  shadow: colors.shadow || '#000',
+  navInactive: isDark ? '#9CA3AF' : '#232B3A',
+  chipBackground: isDark ? '#2A2A3E' : '#e9ecef',
+  chipText: colors.textSecondary,
+  highlight: isDark ? '#1F2033' : '#F8F9FF',
+  mutedCard: isDark ? '#1E1F2C' : '#F6F6F6',
+  destructive: '#FF3B30',
+  warning: '#FF9800',
+  success: '#22C55E',
+  balance: '#1abc9c',
+  navBackground: isDark ? 'rgba(18, 18, 27, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+  navBackgroundIOS: isDark ? 'rgba(18, 18, 27, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+  pillTrack: isDark ? '#2B2C3F' : '#E6F9ED',
+  pillBurned: isDark ? 'rgba(255, 152, 0, 0.15)' : '#FFF4E0',
+  pillBalance: isDark ? 'rgba(26, 188, 156, 0.15)' : '#E6F9ED',
+  chartBackground: colors.cardBackground,
+  disabledText: isDark ? '#6B7280' : '#888',
+});
+
+const createStyles = (palette, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: palette.background,
   },
   header: {
     paddingHorizontal: 20,
@@ -1557,39 +1588,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  greeting: { fontSize: 24, fontWeight: "bold", color: "#343a40" },
-  date: { fontSize: 16, color: "#6c757d" },
+  greeting: { fontSize: 24, fontWeight: "bold", color: palette.textPrimary },
+  date: { fontSize: 16, color: palette.textSecondary },
   headerButton: {
     marginLeft: 16,
-    backgroundColor: "#e9ecef",
+    backgroundColor: palette.highlight,
     padding: 8,
     borderRadius: 20,
   },
-
-  dateScrollView: { paddingHorizontal: 20, paddingVertical: 10 },
-  dateItem: {
-    alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginRight: 10,
-    backgroundColor: "#fff",
-  },
-  dateItemActive: { backgroundColor: "#7B61FF" },
-  dateDay: { fontSize: 14, color: "#6c757d" },
-  dateNumber: { fontSize: 18, fontWeight: "bold", color: "#343a40" },
-  dateTextActive: { color: "#fff" },
-
-  cardTitle: { fontSize: 18, fontWeight: "bold", color: "#343a40" },
+  cardTitle: { fontSize: 18, fontWeight: "bold", color: palette.textPrimary },
   summaryCard: {
-    backgroundColor: "#fff",
+    backgroundColor: palette.card,
     margin: 20,
     marginTop: 10,
     padding: 16,
     borderRadius: 15,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
+    shadowColor: palette.shadow,
+    shadowOpacity: 0.08,
     shadowRadius: 10,
   },
   summaryHeader: {
@@ -1601,21 +1617,16 @@ const styles = StyleSheet.create({
   dateChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#e9ecef",
+    backgroundColor: palette.chipBackground,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 15,
   },
-  dateChipText: { color: "#7B61FF", fontWeight: "bold", marginLeft: 6 },
-  streakContainer: {
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 4,
-  },
+  dateChipText: { color: palette.primary, fontWeight: "bold", marginLeft: 6 },
   streakBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEF3F2",
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : "#FEF3F2",
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 16,
@@ -1627,7 +1638,7 @@ const styles = StyleSheet.create({
   streakText: {
     fontFamily: "Lexend-SemiBold",
     fontSize: 12,
-    color: "#181A20",
+    color: palette.textPrimary,
   },
   summaryBody: {
     flexDirection: "row",
@@ -1635,16 +1646,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   caloriesInfo: { alignItems: "flex-start" },
-  caloriesCount: { fontSize: 40, fontWeight: "bold", color: "#343a40" },
-  caloriesUnit: { fontSize: 16, color: "#6c757d", marginTop: -5 },
+  caloriesCount: { fontSize: 40, fontWeight: "bold", color: palette.textPrimary },
+  caloriesUnit: { fontSize: 16, color: palette.textSecondary, marginTop: -5 },
   progressContainer: { justifyContent: "center", alignItems: "center" },
   progressText: {
     position: "absolute",
     fontSize: 18,
     fontWeight: "bold",
-    color: "#7B61FF",
+    color: palette.primary,
   },
-
   pillRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1662,28 +1672,27 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   pillBurned: {
-    backgroundColor: "#FFF4E0",
+    backgroundColor: palette.pillBurned,
   },
   pillBalance: {
-    backgroundColor: "#E6F9ED",
+    backgroundColor: palette.pillBalance,
   },
   pillLabel: {
     fontSize: 10,
-    color: "#888",
+    color: palette.textMuted,
     fontWeight: "500",
     marginRight: 3,
   },
   pillValueBurned: {
     fontSize: 12,
     fontWeight: "bold",
-    color: "#FF9800",
+    color: palette.warning,
   },
   pillValueBalance: {
     fontSize: 12,
     fontWeight: "bold",
-    color: "#1abc9c",
+    color: palette.balance,
   },
-
   macroGrid: {
     marginHorizontal: 20,
     marginBottom: 20,
@@ -1694,16 +1703,16 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   macroCard: {
-    backgroundColor: "#fff",
+    backgroundColor: palette.card,
     borderRadius: 16,
     padding: 12,
     width: "45%",
     minHeight: 90,
-    shadowColor: "#000",
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.06,
     shadowRadius: 12,
-    elevation: 6,
+    elevation: 4,
     marginBottom: 0,
   },
   macroCardTopRow: {
@@ -1714,39 +1723,39 @@ const styles = StyleSheet.create({
   macroIconLarge: {
     marginRight: 7,
     fontSize: 22,
+    color: palette.textPrimary,
   },
   macroTitle: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#222",
+    color: palette.textPrimary,
   },
   macroValueLarge: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#222",
+    color: palette.textPrimary,
     textAlign: "left",
     marginVertical: 1,
   },
   macroDivider: {
     height: 1,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: palette.border,
     marginVertical: 6,
     width: "100%",
   },
   macroGoalSmall: {
     fontSize: 11,
-    color: "#888",
+    color: palette.textSecondary,
     textAlign: "left",
   },
-
   mealSection: {
-    backgroundColor: "#fff",
+    backgroundColor: palette.card,
     marginHorizontal: 20,
     marginVertical: 8,
     padding: 16,
     borderRadius: 15,
     elevation: 2,
-    shadowColor: "#000",
+    shadowColor: palette.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 10,
     flexDirection: "row",
@@ -1757,25 +1766,24 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#e9ecef",
+    backgroundColor: palette.highlight,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
-  mealTitle: { fontSize: 16, fontWeight: "bold" },
-  mealTime: { fontSize: 12, color: "#6c757d" },
+  mealTitle: { fontSize: 16, fontWeight: "bold", color: palette.textPrimary },
+  mealTime: { fontSize: 12, color: palette.textSecondary },
   mealActions: { flexDirection: "row", alignItems: "center" },
   mealButton: { padding: 4, marginHorizontal: 4 },
-  mealAddButton: { backgroundColor: "#7B61FF", borderRadius: 15, padding: 6 },
-
+  mealAddButton: { backgroundColor: palette.primary, borderRadius: 15, padding: 6 },
   activityCard: {
-    backgroundColor: "#fff",
+    backgroundColor: palette.card,
     margin: 20,
     marginTop: 10,
     padding: 16,
     borderRadius: 15,
     elevation: 2,
-    shadowColor: "#000",
+    shadowColor: palette.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 10,
   },
@@ -1788,15 +1796,15 @@ const styles = StyleSheet.create({
   workoutButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: palette.highlight,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#7B61FF",
+    borderColor: palette.primary,
   },
   workoutButtonText: {
-    color: "#7B61FF",
+    color: palette.primary,
     fontWeight: "600",
     marginLeft: 6,
     fontSize: 14,
@@ -1807,70 +1815,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   activityItem: { alignItems: "center" },
-  activityValue: { fontSize: 18, fontWeight: "bold", marginTop: 4 },
-  activityUnit: { fontSize: 12, color: "#6c757d" },
-
-  modalCenteredView: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalView: {
-    margin: 20,
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 35,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: "90%",
-  },
-  modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 15 },
-  recordButton: {
-    backgroundColor: "#7B61FF",
-    borderRadius: 50,
-    width: 100,
-    height: 100,
-    justifyContent: "center",
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  recordingStatus: { fontSize: 16, color: "#666", marginVertical: 10 },
-  transcribedText: {
-    fontSize: 16,
-    fontStyle: "italic",
-    color: "#333",
-    marginVertical: 15,
-    textAlign: "center",
-  },
-  nutritionResultContainer: { alignItems: "center", width: "100%" },
-  foodName: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
-  nutritionGrid: { marginVertical: 10, alignItems: "center" },
-  confirmLogButton: {
-    backgroundColor: "#28a745",
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 10,
-    width: "100%",
-  },
-  closeButton: {
-    backgroundColor: "#6c757d",
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 20,
-    width: "100%",
-  },
-  buttonText: { color: "white", fontWeight: "bold"   },
+  activityValue: { fontSize: 18, fontWeight: "bold", marginTop: 4, color: palette.textPrimary },
+  activityUnit: { fontSize: 12, color: palette.textSecondary },
 });
 
-// Footer styles (same as MainDashboard)
-const footerStyles = StyleSheet.create({
+const createFooterStyles = (palette) => StyleSheet.create({
   container: {
     position: 'absolute',
     left: 16,
@@ -1884,18 +1833,12 @@ const footerStyles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: palette.navBackground,
     borderRadius: 35,
     paddingVertical: 16,
     paddingHorizontal: 20,
-    shadowColor: '#7B61FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 16,
-    // Add backdrop filter effect for iOS
     ...(Platform.OS === 'ios' && {
-      backgroundColor: 'rgba(255, 255, 255, 0.85)',
+      backgroundColor: palette.navBackgroundIOS,
     }),
   },
   tab: {
@@ -1905,18 +1848,15 @@ const footerStyles = StyleSheet.create({
     paddingHorizontal: 6,
     position: 'relative',
   },
-  activeTab: {
-    // Additional styling for active tab if needed
-  },
   label: {
     fontSize: 12,
     marginTop: 4,
-    color: '#232B3A',
+    color: palette.navInactive,
     letterSpacing: 0.1,
     fontWeight: '500',
   },
   activeLabel: {
-    color: '#7B61FF',
+    color: palette.primary,
     fontWeight: '600',
   },
   activeIndicator: {
@@ -1924,13 +1864,12 @@ const footerStyles = StyleSheet.create({
     bottom: -12,
     width: 30,
     height: 3,
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.primary,
     borderRadius: 2,
   },
 });
 
-// Plus icon styles (vertical alignment)
-const plusStyles = StyleSheet.create({
+const createPlusStyles = (palette) => StyleSheet.create({
   container: {
     position: 'absolute',
     right: 20,
@@ -1942,15 +1881,14 @@ const plusStyles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7B61FF',
+    shadowColor: palette.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
-    
   },
   cameraButton: {
     width: 50,

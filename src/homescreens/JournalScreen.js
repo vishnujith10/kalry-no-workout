@@ -1,13 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 
 const JournalScreen = () => {
   const navigation = useNavigation();
+  const { colors, isDark } = useTheme();
+
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
 
 
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -22,6 +27,15 @@ const JournalScreen = () => {
 
   const filters = ['All', 'Meals', 'Workouts', 'Sleep', 'Hydration', 'Weight'];
   const [showTypeMenu, setShowTypeMenu] = useState(false);
+
+  const iconMap = useMemo(() => ({
+    meal: { icon: 'restaurant', color: palette.highlightGreen, bgColor: palette.highlightGreenBg },
+    workout: { icon: 'fitness', color: palette.highlightOrange, bgColor: palette.highlightOrangeBg },
+    sleep: { icon: 'moon', color: palette.highlightPurple, bgColor: palette.highlightPurpleBg },
+    hydration: { icon: 'water', color: palette.highlightBlue, bgColor: palette.highlightBlueBg },
+    weight: { icon: 'body', color: palette.highlightRed, bgColor: palette.highlightRedBg },
+    default: { icon: 'ellipse', color: palette.timelineIconDefaultColor, bgColor: palette.timelineIconDefaultBg },
+  }), [palette]);
 
   useEffect(() => {
     fetchJournalData();
@@ -443,22 +457,7 @@ const JournalScreen = () => {
     }
   };
 
-  const getIconForType = (type) => {
-    switch (type) {
-      case 'meal':
-        return { icon: 'restaurant', color: '#10B981', bgColor: '#D1FAE5' };
-      case 'workout':
-        return { icon: 'fitness', color: '#F59E0B', bgColor: '#FEF3C7' };
-      case 'sleep':
-        return { icon: 'moon', color: '#8B5CF6', bgColor: '#EDE9FE' };
-      case 'hydration':
-        return { icon: 'water', color: '#3B82F6', bgColor: '#DBEAFE' };
-      case 'weight':
-        return { icon: 'body', color: '#EF4444', bgColor: '#FEE2E2' };
-      default:
-        return { icon: 'ellipse', color: '#6B7280', bgColor: '#E5E7EB' };
-    }
-  };
+  const getIconForType = (type) => iconMap[type] || iconMap.default;
 
   const filterEntries = (entries) => {
     if (selectedFilter === 'All') return entries;
@@ -618,7 +617,7 @@ const JournalScreen = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7B61FF" />
+          <ActivityIndicator size="large" color={palette.primary} />
           <Text style={styles.loadingText}>Loading journal...</Text>
         </View>
       </SafeAreaView>
@@ -627,7 +626,7 @@ const JournalScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       
       {/* Header */}
       <View style={styles.header}>
@@ -636,7 +635,7 @@ const JournalScreen = () => {
             style={styles.backButton}
             onPress={() => navigation.navigate('MainDashboard')}
           >
-            <Ionicons name="chevron-back" size={24} color="#374151" />
+            <Ionicons name="chevron-back" size={24} color={palette.iconPrimary} />
           </TouchableOpacity>
         </View>
         <View style={styles.headerTitleContainer}>
@@ -645,7 +644,7 @@ const JournalScreen = () => {
         <View style={[styles.rangeDropdownWrapper, styles.headerRightFixed]}> 
           <TouchableOpacity style={styles.rangeDropdownButton} onPress={() => setShowTypeMenu(v => !v)}>
             <Text style={styles.rangeDropdownText}>{selectedFilter}</Text>
-            <Ionicons name={showTypeMenu ? 'chevron-up' : 'chevron-down'} size={18} color="#7B61FF" />
+            <Ionicons name={showTypeMenu ? 'chevron-up' : 'chevron-down'} size={18} color={palette.primary} />
           </TouchableOpacity>
           {showTypeMenu && (
             <View style={styles.rangeDropdownMenu}>
@@ -669,7 +668,7 @@ const JournalScreen = () => {
             <View style={styles.rangeDropdownWrapper}>
               <TouchableOpacity style={styles.rangeDropdownButton} onPress={() => setShowRangeMenu(v => !v)}>
                 <Text style={styles.rangeDropdownText}>{rangeFilter === 'today' ? 'Today' : rangeFilter === '7days' ? '7 days' : '1 month'}</Text>
-                <Ionicons name={showRangeMenu ? 'chevron-up' : 'chevron-down'} size={18} color="#7B61FF" />
+                <Ionicons name={showRangeMenu ? 'chevron-up' : 'chevron-down'} size={18} color={palette.primary} />
               </TouchableOpacity>
               {showRangeMenu && (
                 <View style={styles.rangeDropdownMenu}>
@@ -729,21 +728,55 @@ const JournalScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (themeColors, isDark) => ({
+  background: themeColors.background,
+  cardBackground: themeColors.cardBackground,
+  textPrimary: themeColors.textPrimary,
+  textSecondary: themeColors.textSecondary,
+  textMuted: themeColors.textMuted,
+  primary: themeColors.primary,
+  border: themeColors.border,
+  chipBg: isDark ? 'rgba(161, 130, 249, 0.18)' : '#EDE9FE',
+  chipActiveBg: themeColors.primary,
+  chipText: themeColors.primary,
+  chipActiveText: '#FFFFFF',
+  dropdownBg: themeColors.cardBackground,
+  dropdownBorder: themeColors.border,
+  dropdownShadowColor: '#000',
+  dayLabel: isDark ? '#CBD5F5' : 'grey',
+  timelineLine: isDark ? 'rgba(255,255,255,0.16)' : '#E5E7EB',
+  timelineIconBorder: isDark ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+  timelineIconDefaultBg: isDark ? 'rgba(107,114,128,0.35)' : '#E5E7EB',
+  timelineIconDefaultColor: isDark ? '#E5E7EB' : '#6B7280',
+  highlightGreen: isDark ? '#6EE7B7' : '#10B981',
+  highlightGreenBg: isDark ? 'rgba(16,185,129,0.25)' : '#D1FAE5',
+  highlightOrange: isDark ? '#FBBF24' : '#F59E0B',
+  highlightOrangeBg: isDark ? 'rgba(251,191,36,0.22)' : '#FEF3C7',
+  highlightPurple: isDark ? '#C4B5FD' : '#8B5CF6',
+  highlightPurpleBg: isDark ? 'rgba(139,92,246,0.22)' : '#EDE9FE',
+  highlightBlue: isDark ? '#93C5FD' : '#3B82F6',
+  highlightBlueBg: isDark ? 'rgba(59,130,246,0.22)' : '#DBEAFE',
+  highlightRed: isDark ? '#FCA5A5' : '#EF4444',
+  highlightRedBg: isDark ? 'rgba(239,68,68,0.22)' : '#FEE2E2',
+  textPlaceholder: isDark ? '#9CA3AF' : '#9CA3AF',
+  iconPrimary: isDark ? '#E5E7EB' : '#374151',
+});
+
+const createStyles = (palette, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.background,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: palette.textSecondary,
     fontFamily: 'Manrope-Regular',
   },
   header: {
@@ -752,7 +785,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.cardBackground,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.border,
   },
   headerLeftFixed: {
     width: 90,
@@ -765,11 +800,12 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 8,
     marginRight: 8,
+    borderRadius: 12,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1F2937',
+    color: palette.textPrimary,
     fontFamily: 'Lexend-Bold',
   },
   headerRightFixed: {
@@ -777,10 +813,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   filtersContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.cardBackground,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.border,
   },
   filtersContent: {
     paddingHorizontal: 20,
@@ -790,24 +826,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: palette.chipBg,
     marginRight: 10,
   },
   filterButtonActive: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.chipActiveBg,
   },
   filterText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#7B61FF',
+    color: palette.chipText,
     fontFamily: 'Lexend-SemiBold',
   },
   filterTextActive: {
-    color: '#FFFFFF',
+    color: palette.chipActiveText,
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: palette.background,
   },
   timelineContainer: {
     paddingHorizontal: 20,
@@ -827,12 +863,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1F2937',
+    color: palette.textPrimary,
     marginBottom: 24,
     fontFamily: 'Lexend-Bold',
   },
   dayLabel: {
-    color: 'grey',
+    color: palette.dayLabel,
     fontSize: 18,
     fontFamily: 'Lexend-SemiBold',
     marginBottom: 8,
@@ -851,13 +887,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: palette.chipBg,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   rangeDropdownText: {
-    color: '#7B61FF',
+    color: palette.chipText,
     fontFamily: 'Lexend-SemiBold',
     fontSize: 14,
   },
@@ -865,16 +901,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 44,
     right: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.dropdownBg,
     borderRadius: 12,
     paddingVertical: 6,
-    shadowColor: '#000',
+    shadowColor: palette.dropdownShadowColor,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.45 : 0.12,
     shadowRadius: 6,
     elevation: 16,
     zIndex: 1001,
     minWidth: 120,
+    borderWidth: isDark ? StyleSheet.hairlineWidth : 0,
+    borderColor: palette.dropdownBorder,
   },
   rangeDropdownItem: {
     paddingVertical: 8,
@@ -882,28 +920,28 @@ const styles = StyleSheet.create({
   },
   rangeDropdownItemText: {
     fontSize: 14,
-    color: '#374151',
+    color: palette.textPrimary,
   },
   rangeDropdownItemTextActive: {
-    color: '#7B61FF',
+    color: palette.primary,
     fontFamily: 'Lexend-SemiBold',
   },
   rangeChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: palette.chipBg,
   },
   rangeChipActive: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: palette.chipActiveBg,
   },
   rangeText: {
     fontSize: 12,
-    color: '#7B61FF',
+    color: palette.chipText,
     fontFamily: 'Lexend-SemiBold',
   },
   rangeTextActive: {
-    color: '#FFFFFF',
+    color: palette.chipActiveText,
   },
   timelineSection: {
     position: 'relative',
@@ -914,7 +952,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 2,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: palette.timelineLine,
   },
   entriesWrapper: {
     paddingLeft: 0,
@@ -925,7 +963,7 @@ const styles = StyleSheet.create({
   categoryTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: palette.textPrimary,
     marginBottom: 12,
     marginLeft: 56,
     fontFamily: 'Lexend-SemiBold',
@@ -947,7 +985,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderColor: palette.timelineIconBorder,
   },
   entryCard: {
     flex: 1,
@@ -955,29 +993,31 @@ const styles = StyleSheet.create({
     padding: 20,
     marginLeft: 16,
     marginTop: 0,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    backgroundColor: palette.cardBackground,
+    shadowColor: palette.dropdownShadowColor,
+    shadowOffset: { width: 0, height: isDark ? 3 : 1 },
+    shadowOpacity: isDark ? 0.35 : 0.08,
+    shadowRadius: isDark ? 8 : 2,
+    elevation: isDark ? 4 : 1,
+    borderWidth: isDark ? StyleSheet.hairlineWidth : 0,
+    borderColor: palette.border,
   },
   entryTitle: {
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Lexend-SemiBold',
-    color: '#1F2937',
+    color: palette.textPrimary,
     marginBottom: 4,
   },
   entryDescription: {
     fontSize: 14,
     lineHeight: 20,
     fontFamily: 'Manrope-Regular',
-    color: '#6B7280',
+    color: palette.textSecondary,
   },
   entryTime: {
     fontSize: 12,
-    color: '#6B7280',
+    color: palette.textMuted,
     marginLeft: 12,
     fontFamily: 'Manrope-Regular',
   },
@@ -989,7 +1029,7 @@ const styles = StyleSheet.create({
   noEntryText: {
     fontSize: 14,
     fontFamily: 'Manrope-Regular',
-    color: '#9CA3AF',
+    color: palette.textPlaceholder,
     fontStyle: 'italic',
   },
 });

@@ -6,13 +6,13 @@ import React, { useContext, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 
-// Modern Fitness Light Mode Palette
 const LIGHT_BG = '#F8F9FE';
 const CARD_BG = '#FFFFFF';
+const PRIMARY_PURPLE = '#A182F9';
 const TEXT_PRIMARY = '#1A1D2E';
 const TEXT_SECONDARY = '#6B7280';
-const PRIMARY_PURPLE = '#A182F9';
 
 const options = [
   { label: 'Instagram', icon: 'instagram', gradient: ['#FECACA', '#FCA5A5'] },
@@ -37,6 +37,7 @@ const saveOnboardingData = async (key, value) => {
 
 const ReferralSourceScreen = ({ navigation }) => {
   const { onboardingData, setOnboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
   const [selected, setSelected] = useState(null);
   const [otherText, setOtherText] = useState('');
   const inputRef = useRef(null);
@@ -66,9 +67,91 @@ const ReferralSourceScreen = ({ navigation }) => {
     }, 300);
   };
 
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    subtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      letterSpacing: 2,
+      fontWeight: '600',
+      marginBottom: 6,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      fontFamily: 'Lexend-Bold',
+      letterSpacing: -0.5,
+      marginBottom: 8,
+      lineHeight: 34,
+    },
+    description: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      lineHeight: 24,
+      marginBottom: 32,
+    },
+    optionCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 12,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    optionText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      fontFamily: 'Manrope-Regular',
+      marginLeft: 12,
+    },
+    otherInputCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 16,
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    otherInput: {
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontFamily: 'Manrope-Regular',
+    },
+    infoCard: {
+      backgroundColor: isDark ? '#2A2A3E' : '#F3EFFF',
+      borderRadius: 12,
+      padding: 16,
+      marginTop: 24,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    infoText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      marginLeft: 12,
+      flex: 1,
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={dynamicStyles.container}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -77,7 +160,7 @@ const ReferralSourceScreen = ({ navigation }) => {
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <View style={styles.backButtonCircle}>
-              <Ionicons name="chevron-back" size={24} color={TEXT_PRIMARY} />
+              <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
             </View>
           </TouchableOpacity>
           <View style={{ width: 44 }} />
@@ -92,9 +175,9 @@ const ReferralSourceScreen = ({ navigation }) => {
         >
         <View style={styles.contentWrapper}>
           <View style={styles.header}>
-            <Text style={styles.subtitle}>ONE QUICK QUESTION</Text>
-            <Text style={styles.title}>How did you{'\n'}hear about us?</Text>
-            <Text style={styles.description}>
+            <Text style={dynamicStyles.subtitle}>ONE QUICK QUESTION</Text>
+            <Text style={dynamicStyles.title}>How did you{'\n'}hear about us?</Text>
+            <Text style={dynamicStyles.description}>
               Helps us grow and improve your experience
             </Text>
           </View>
@@ -104,7 +187,7 @@ const ReferralSourceScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={option.label}
                 style={[
-                  styles.optionCard,
+                  dynamicStyles.optionCard,
                   selected === idx && styles.optionCardSelected
                 ]}
                 onPress={() => handleOptionSelect(idx)}
@@ -115,9 +198,9 @@ const ReferralSourceScreen = ({ navigation }) => {
                     colors={option.gradient}
                     style={styles.iconWrapper}
                   >
-                    <MaterialIcons name={option.icon} size={24} color={TEXT_PRIMARY} />
+                    <MaterialIcons name={option.icon} size={24} color={colors.textPrimary} />
                   </LinearGradient>
-                  <Text style={styles.optionText}>{option.label}</Text>
+                  <Text style={dynamicStyles.optionText}>{option.label}</Text>
                   {selected === idx ? (
                     <View style={styles.checkCircle}>
                       <MaterialIcons name="check" size={16} color="#FFFFFF" />
@@ -131,24 +214,24 @@ const ReferralSourceScreen = ({ navigation }) => {
           </View>
 
           {isOtherSelected && (
-            <View style={styles.otherInputCard}>
-              <MaterialCommunityIcons name="pencil" size={20} color={TEXT_SECONDARY} />
+            <View style={dynamicStyles.otherInputCard}>
+              <MaterialCommunityIcons name="pencil" size={20} color={colors.textSecondary} />
               <TextInput
                 ref={inputRef}
-                style={styles.otherInput}
+                style={dynamicStyles.otherInput}
                 placeholder="Tell us where you found Kalry..."
                 value={otherText}
                 onChangeText={setOtherText}
                 onFocus={handleOtherInputFocus}
                 autoFocus={true}
-                placeholderTextColor={TEXT_SECONDARY}
+                placeholderTextColor={colors.textSecondary}
               />
             </View>
           )}
 
-          <View style={styles.infoCard}>
-            <MaterialCommunityIcons name="shield-check" size={20} color={PRIMARY_PURPLE} />
-            <Text style={styles.infoText}>
+          <View style={dynamicStyles.infoCard}>
+            <MaterialCommunityIcons name="shield-check" size={20} color={colors.primary} />
+            <Text style={dynamicStyles.infoText}>
               We never share your data or use it for ads
             </Text>
           </View>
@@ -180,10 +263,6 @@ const ReferralSourceScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: LIGHT_BG,
-  },
   keyboardAvoidingView: {
     flex: 1,
   },

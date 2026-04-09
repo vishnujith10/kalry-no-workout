@@ -5,13 +5,13 @@ import React, { useContext, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 
-// Modern Fitness Light Mode Palette
 const LIGHT_BG = '#F8F9FE';
 const CARD_BG = '#FFFFFF';
+const PRIMARY_PURPLE = '#A182F9';
 const TEXT_PRIMARY = '#1A1D2E';
 const TEXT_SECONDARY = '#6B7280';
-const PRIMARY_PURPLE = '#A182F9';
 
 const options = [
   {
@@ -33,6 +33,7 @@ const options = [
 
 const FocusScreen = ({ navigation }) => {
   const { onboardingData, setOnboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
   const [selected, setSelected] = useState(null);
 
   const handleContinue = (selectedFocus) => {
@@ -43,13 +44,61 @@ const FocusScreen = ({ navigation }) => {
     navigation.navigate('WeightGoal');
   };
 
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    subtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      letterSpacing: 2,
+      fontWeight: '600',
+      marginBottom: 6,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      fontFamily: 'Lexend-Bold',
+      letterSpacing: -0.5,
+      marginBottom: 8,
+      lineHeight: 34,
+    },
+    description: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      lineHeight: 24,
+      marginBottom: 32,
+    },
+    optionCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 12,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    optionText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      fontFamily: 'Manrope-Regular',
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={dynamicStyles.container}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <View style={styles.backButtonCircle}>
-            <Ionicons name="chevron-back" size={24} color={TEXT_PRIMARY} />
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </View>
         </TouchableOpacity>
         <View style={{ width: 44 }} />
@@ -61,9 +110,9 @@ const FocusScreen = ({ navigation }) => {
       >
         <View style={styles.contentWrapper}>
           <View style={styles.header}>
-            <Text style={styles.subtitle}>FITNESS GOAL</Text>
-            <Text style={styles.title}>What&apos;s your primary focus?</Text>
-            <Text style={styles.description}>
+            <Text style={dynamicStyles.subtitle}>FITNESS GOAL</Text>
+            <Text style={dynamicStyles.title}>What&apos;s your primary focus?</Text>
+            <Text style={dynamicStyles.description}>
               Select the goal that matters most to you
             </Text>
           </View>
@@ -73,7 +122,7 @@ const FocusScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={option.label}
                 style={[
-                  styles.optionCard,
+                  dynamicStyles.optionCard,
                   selected === idx && styles.optionCardSelected
                 ]}
                 onPress={() => setSelected(idx)}
@@ -84,11 +133,11 @@ const FocusScreen = ({ navigation }) => {
                     colors={option.gradient}
                     style={styles.iconWrapper}
                   >
-                    {option.icon === 'activity' && <Feather name="activity" size={24} color={TEXT_PRIMARY} />}
-                    {option.icon === 'dumbbell' && <FontAwesome5 name="dumbbell" size={24} color={TEXT_PRIMARY} />}
-                    {option.icon === 'favorite' && <MaterialIcons name="favorite" size={24} color={TEXT_PRIMARY} />}
+                    {option.icon === 'activity' && <Feather name="activity" size={24} color={colors.textPrimary} />}
+                    {option.icon === 'dumbbell' && <FontAwesome5 name="dumbbell" size={24} color={colors.textPrimary} />}
+                    {option.icon === 'favorite' && <MaterialIcons name="favorite" size={24} color={colors.textPrimary} />}
                   </LinearGradient>
-                  <Text style={styles.optionText}>{option.label}</Text>
+                  <Text style={dynamicStyles.optionText}>{option.label}</Text>
                   {selected === idx ? (
                     <View style={styles.checkCircle}>
                       <MaterialIcons name="check" size={16} color="#FFFFFF" />

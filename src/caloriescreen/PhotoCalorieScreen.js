@@ -3,16 +3,18 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CompassionateFeedbackEngine } from '../algorithms/CompassionateFeedbackEngine';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 import { createFoodLog } from '../utils/api';
 
 const PhotoCalorieScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
   const { photoUri, mealType } = route.params;
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const [isLoading, setIsLoading] = useState(true);
   const [analysis, setAnalysis] = useState(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -45,6 +47,7 @@ const PhotoCalorieScreen = ({ route, navigation }) => {
   }
   
   const genAI = new GoogleGenerativeAI(apiKey);
+  const visionModels = ['gemini-2.0-flash', 'gemini-1.5-pro-latest', 'gemini-1.5-flash-8b'];
 
   useEffect(() => {
     if (photoUri) {
@@ -64,10 +67,9 @@ const PhotoCalorieScreen = ({ route, navigation }) => {
         ]);
       };
 
-      const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
       let lastError = null;
 
-      for (const modelName of models) {
+      for (const modelName of visionModels) {
         try {
           const model = genAI.getGenerativeModel({ model: modelName });
           
@@ -185,10 +187,12 @@ Guidelines:
         msg.includes("enotfound") ||
         msg.includes("err_internet_disconnected")
       ) {
-        Alert.alert(
-          "Network Error",
-          "Unable to connect. Please check your internet connection and try again."
-        );
+        const isModelMissing = msg.includes('model') && msg.includes('not found');
+        const title = isModelMissing ? 'Service Update Needed' : 'Network Error';
+        const message = isModelMissing
+          ? 'The selected AI model is no longer available. Please update to the latest app version or configure a supported Gemini model.'
+          : 'Unable to connect. Please check your internet connection and try again.';
+        Alert.alert(title, message);
       } else if (
         msg.includes("no food items detected") ||
         msg.includes("invalid json") ||
@@ -263,32 +267,10 @@ Guidelines:
       
       await createFoodLog(logData);
       
-      // ✅ COMPASSIONATE FEEDBACK IMPLEMENTATION
-      const feedbackEngine = new CompassionateFeedbackEngine();
-      const foodData = {
-        name: editedFoodName || dish_name,
-        calories: analysisToUse.total_nutrition.calories,
-        protein: macros.protein || 0,
-        carbs: macros.carbs || 0,
-        fat: macros.fat || 0,
-        fiber: macros.fiber || 0,
-        micronutrients: analysisToUse.total_nutrition.micronutrients || {},
-        category: 'meal'
-      };
-      
-      // Add meal context for better feedback
-      const mealContext = {
-        mealType: mealType,
-        timeOfDay: new Date().getHours(),
-        mood: selectedMood !== null ? moodOptions[selectedMood].label : null
-      };
-      
-      const feedback = feedbackEngine.generateFoodFeedback(foodData, mealContext);
-      
-      // Show compassionate feedback instead of generic success
+      // Show generic success message
       Alert.alert(
         "Food Logged! 🍽️",
-        feedback.message,
+        "Your meal has been manually logged successfully.",
         [{ 
           text: "Great!", 
           style: "default", 
@@ -347,24 +329,9 @@ Guidelines:
         console.log('Could not invalidate cache:', cacheError);
       }
       
-      // ✅ COMPASSIONATE FEEDBACK FOR SAVED MEALS
-      const feedbackEngine = new CompassionateFeedbackEngine();
-      const foodData = {
-        name: editedFoodName || dish_name,
-        calories: total_nutrition.calories,
-        protein: macros.protein || 0,
-        carbs: macros.carbs || 0,
-        fat: macros.fat || 0,
-        fiber: macros.fiber || 0,
-        micronutrients: total_nutrition.micronutrients || {},
-        category: 'meal'
-      };
-      
-      const feedback = feedbackEngine.generateFoodFeedback(foodData);
-      
       Alert.alert(
         'Meal Saved! 💾', 
-        `${feedback.message}\n\nThis meal has been added to your Saved Meals for easy logging later!`,
+        `This meal has been added to your Saved Meals for easy logging later!`,
         [{ 
           text: 'Great!', 
           onPress: () => navigation.navigate('SavedMealsScreen', { refresh: true })
@@ -391,7 +358,7 @@ Guidelines:
 
     setIsReanalyzing(true);
     try {
-      const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+      const models = ['gemini-2.0-flash', 'gemini-1.5-pro-latest', 'gemini-1.5-flash-8b'];
       let lastError = null;
 
       for (const modelName of models) {
@@ -526,7 +493,7 @@ The JSON object must have this structure:
   if (showErrorModal) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <View style={styles.errorContainer}>
           <Ionicons name="camera-outline" size={80} color="#ccc" />
           <Text style={styles.errorTitle}>No Food Detected</Text>
@@ -549,7 +516,7 @@ The JSON object must have this structure:
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size={50} color="#7B61FF" />
           <Text style={styles.loadingText}>Analyzing your food...</Text>
@@ -562,7 +529,7 @@ The JSON object must have this structure:
   if (!analysis) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={80} color="#ff4757" />
           <Text style={styles.errorTitle}>Analysis Failed</Text>
@@ -579,7 +546,7 @@ The JSON object must have this structure:
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -736,10 +703,10 @@ The JSON object must have this structure:
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -747,7 +714,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: isDark ? colors.border : '#f0f0f0',
+    backgroundColor: colors.cardBackground,
   },
   backButton: {
     marginRight: 16,
@@ -756,7 +724,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   content: {
@@ -777,7 +745,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255, 255, 255, 0.9)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -788,7 +756,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 14,
     fontWeight: '500',
-    color: '#7B61FF',
+    color: colors.primary,
   },
   section: {
     marginHorizontal: 20,
@@ -803,16 +771,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
   },
   foodName: {
     fontSize: 16,
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   editableText: {
-    borderBottomWidth: 1, 
-    borderBottomColor: '#6366F1',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primary,
     paddingVertical: 5,
   },
   editActions: {
@@ -828,12 +796,12 @@ const styles = StyleSheet.create({
   },
   confidence: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
   },
   nutritionGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8f9fa',
     borderRadius: 12,
     padding: 16,
   },
@@ -843,11 +811,11 @@ const styles = StyleSheet.create({
   nutritionValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#7B61FF',
+    color: colors.primary,
   },
   nutritionLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   ingredientItem: {
@@ -859,7 +827,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#7B61FF',
+    backgroundColor: colors.primary,
     marginRight: 12,
   },
   ingredientInfo: {
@@ -867,12 +835,12 @@ const styles = StyleSheet.create({
   },
   ingredientName: {
     fontSize: 16,
-    color: '#333',
+    color: colors.textPrimary,
     fontWeight: '500',
   },
   ingredientQuantity: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   moodGrid: {
@@ -886,12 +854,12 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8f9fa',
   },
   selectedMood: {
-    backgroundColor: '#E8E4FF',
+    backgroundColor: isDark ? 'rgba(123, 97, 255, 0.25)' : '#E8E4FF',
     borderWidth: 2,
-    borderColor: '#7B61FF',
+    borderColor: colors.primary,
   },
   moodEmoji: {
     fontSize: 24,
@@ -899,20 +867,21 @@ const styles = StyleSheet.create({
   },
   moodLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   actionContainer: {
     flexDirection: 'row',
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: isDark ? colors.border : '#f0f0f0',
+    backgroundColor: colors.cardBackground,
   },
   saveButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8f9fa',
     borderRadius: 12,
     paddingVertical: 16,
     marginRight: 12,
@@ -921,11 +890,11 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 16,
     fontWeight: '600',
-    color: '#7B61FF',
+    color: colors.primary,
   },
   confirmButton: {
     flex: 2,
-    backgroundColor: '#7B61FF',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -945,12 +914,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
   },
   loadingSubtext: {
     marginTop: 8,
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   errorContainer: {
@@ -962,13 +931,13 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#333',
+    color: colors.textPrimary,
     marginTop: 20,
     marginBottom: 12,
   },
   errorMessage: {
     fontSize: 16,
-    color: '#666',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 20,
@@ -979,11 +948,11 @@ const styles = StyleSheet.create({
   },
   errorTip: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 6,
   },
   retryButton: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 32,
@@ -1004,7 +973,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 24,
     width: '90%',
@@ -1013,7 +982,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -1023,16 +992,17 @@ const styles = StyleSheet.create({
   editLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   editInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: '#333',
+    color: colors.textPrimary,
+    backgroundColor: colors.cardBackground,
   },
   macroGrid: {
     flexDirection: 'row',
@@ -1046,12 +1016,13 @@ const styles = StyleSheet.create({
   },
   macroInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: '#333',
+    color: colors.textPrimary,
     textAlign: 'center',
+    backgroundColor: colors.cardBackground,
   },
   modalActions: {
     flexDirection: 'row',
@@ -1059,7 +1030,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8f9fa',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1068,11 +1039,11 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textSecondary,
   },
   saveEditButton: {
     flex: 1,
-    backgroundColor: '#7B61FF',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',

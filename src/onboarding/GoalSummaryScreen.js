@@ -5,19 +5,20 @@ import React, { useContext } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 
-// Modern Fitness Light Mode Palette 2024-2025
 const LIGHT_BG = '#F8F9FE';
 const CARD_BG = '#FFFFFF';
-const TEXT_PRIMARY = '#1A1D2E';
-const TEXT_SECONDARY = '#6B7280';
 const PRIMARY_PURPLE = '#A182F9';
 const VIBRANT_PURPLE = '#7C3AED';
 const SUCCESS_GREEN = '#10B981';
 const ENERGY_ORANGE = '#F97316';
+const TEXT_PRIMARY = '#1A1D2E';
+const TEXT_SECONDARY = '#6B7280';
 
 const GoalSummaryScreen = ({ navigation }) => {
   const { onboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
 
   const {
     goal_focus = 'Lose',
@@ -65,12 +66,12 @@ const GoalSummaryScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <View style={styles.backButtonCircle}>
-            <Ionicons name="chevron-back" size={24} color={TEXT_PRIMARY} />
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </View>
         </TouchableOpacity>
         <View style={{ width: 44 }} />

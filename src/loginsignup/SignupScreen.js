@@ -14,11 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 import calculateCalorieProfile from '../utils/calorieCalculator';
 import { handleGoogleSignIn, initializeGoogleSignIn } from './googleSignInService';
 
-const LIGHT_BG = '#F8F9FE';
 const CARD_BG = '#FFFFFF';
 const TEXT_PRIMARY = '#1A1D2E';
 const TEXT_SECONDARY = '#6B7280';
@@ -26,6 +26,7 @@ const PRIMARY_PURPLE = '#A182F9';
 
 const SignupScreen = ({ navigation }) => {
   const { onboardingData, setOnboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -344,13 +345,108 @@ const SignupScreen = ({ navigation }) => {
     }
   };
 
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    subtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      letterSpacing: 2,
+      fontWeight: '600',
+      marginBottom: 6,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      fontFamily: 'Lexend-Bold',
+      letterSpacing: -0.5,
+      marginBottom: 8,
+      lineHeight: 34,
+    },
+    description: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+      lineHeight: 24,
+      marginBottom: 32,
+    },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      marginBottom: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDark ? 0.3 : 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    input: {
+      flex: 1,
+      height: 48,
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontFamily: 'Manrope-Regular',
+    },
+    buttonActive: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 16,
+      gap: 10,
+      backgroundColor: colors.primary,
+      borderRadius: 16,
+    },
+    buttonText: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      fontFamily: 'Lexend-Bold',
+      letterSpacing: 0.3,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      marginHorizontal: 16,
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontFamily: 'Manrope-Regular',
+      fontWeight: '600',
+    },
+    socialButtonText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      fontFamily: 'Lexend-Bold',
+    },
+    loginText: {
+      color: colors.textSecondary,
+      fontFamily: 'Manrope-Regular',
+    },
+    loginLink: {
+      color: colors.primary,
+      fontWeight: '600',
+      fontFamily: 'Manrope-Regular',
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={dynamicStyles.container} edges={['top']}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} disabled={loading}>
           <View style={styles.backButtonCircle}>
-            <Ionicons name="chevron-back" size={24} color={TEXT_PRIMARY} />
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </View>
         </TouchableOpacity>
         <View style={{ width: 44 }} />
@@ -372,19 +468,19 @@ const SignupScreen = ({ navigation }) => {
       >
         <View style={styles.contentWrapper}>
           <View style={styles.header}>
-            <Text style={styles.subtitle}>ALMOST DONE</Text>
-            <Text style={styles.title}>Create your{'\n'}account</Text>
-            <Text style={styles.description}>
+            <Text style={dynamicStyles.subtitle}>ALMOST DONE</Text>
+            <Text style={dynamicStyles.title}>Create your{'\n'}account</Text>
+            <Text style={dynamicStyles.description}>
               Complete your signup to start your fitness journey
             </Text>
           </View>
           <View style={styles.form}>
-            <View style={styles.inputContainer}>
+            <View style={dynamicStyles.inputContainer}>
               
               <TextInput
-                style={styles.input}
+                style={dynamicStyles.input}
                 placeholder="Email"
-                placeholderTextColor={TEXT_SECONDARY}
+                placeholderTextColor={colors.textSecondary}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -396,12 +492,12 @@ const SignupScreen = ({ navigation }) => {
             {/* ✅ Only show password field if NOT Google signup */}
             {!isGoogleSignup && (
               <>
-                <View style={[styles.inputContainer, passwordError && styles.inputContainerError]}>
+                <View style={[dynamicStyles.inputContainer, passwordError && styles.inputContainerError]}>
                 
                   <TextInput
-                    style={styles.input}
+                    style={dynamicStyles.input}
                     placeholder="Password"
-                    placeholderTextColor={TEXT_SECONDARY}
+                    placeholderTextColor={colors.textSecondary}
                     value={password}
                     onChangeText={handlePasswordChange}
                     secureTextEntry
@@ -411,12 +507,12 @@ const SignupScreen = ({ navigation }) => {
                 {passwordError && (
                   <Text style={styles.errorText}>Password must be at least 6 characters long</Text>
                 )}
-                <View style={[styles.inputContainer, confirmPasswordError && styles.inputContainerError]}>
+                <View style={[dynamicStyles.inputContainer, confirmPasswordError && styles.inputContainerError]}>
                  
                   <TextInput
-                    style={styles.input}
+                    style={dynamicStyles.input}
                     placeholder="Confirm Password"
-                    placeholderTextColor={TEXT_SECONDARY}
+                    placeholderTextColor={colors.textSecondary}
                     value={confirmPassword}
                     onChangeText={handleConfirmPasswordChange}
                     secureTextEntry
@@ -442,8 +538,8 @@ const SignupScreen = ({ navigation }) => {
                   </Text>
                 </View>
               ) : (
-                <View style={styles.buttonActive}>
-                  <Text style={styles.buttonText}>
+                <View style={dynamicStyles.buttonActive}>
+                  <Text style={dynamicStyles.buttonText}>
                     {isGoogleSignup ? 'Complete Signup' : 'Create Account'}
                   </Text>
                   <MaterialIcons name="arrow-forward" size={22} color="#FFFFFF" />
@@ -454,9 +550,9 @@ const SignupScreen = ({ navigation }) => {
             {!isGoogleSignup && (
               <>
                 <View style={styles.dividerContainer}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>OR</Text>
-                  <View style={styles.dividerLine} />
+                  <View style={dynamicStyles.dividerLine} />
+                  <Text style={dynamicStyles.dividerText}>OR</Text>
+                  <View style={dynamicStyles.dividerLine} />
                 </View>
 
                 <TouchableOpacity
@@ -466,11 +562,11 @@ const SignupScreen = ({ navigation }) => {
                   activeOpacity={0.85}
                 >
                   {loading ? (
-                    <ActivityIndicator size="small" color={CARD_BG} />
+                    <ActivityIndicator size="small" color={colors.cardBackground} />
                   ) : (
                     <>
                       <FontAwesome5 name="google" size={18} color="#FF9800" />
-                      <Text style={styles.socialButtonText}>Sign up with Google</Text>
+                      <Text style={dynamicStyles.socialButtonText}>Sign up with Google</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -478,9 +574,9 @@ const SignupScreen = ({ navigation }) => {
             )}
 
             <View style={styles.loginContainer}>
-              <Text style={styles.loginText}>Already have an account? </Text>
+              <Text style={dynamicStyles.loginText}>Already have an account? </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
-                <Text style={styles.loginLink}>Sign In</Text>
+                <Text style={dynamicStyles.loginLink}>Sign In</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -491,10 +587,6 @@ const SignupScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: LIGHT_BG,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',

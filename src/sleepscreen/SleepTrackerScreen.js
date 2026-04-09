@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OnboardingContext } from "../context/OnboardingContext";
+import { useTheme } from '../context/ThemeContext';
 import supabase from "../lib/supabase";
 
 const SLEEP_QUALITIES = ["Excellent", "Good", "Fair", "Poor"];
@@ -38,6 +39,9 @@ const globalSleepCache = {
 const SleepTrackerScreen = () => {
   const navigation = useNavigation();
   const { onboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
+  const palette = useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const insets = useSafeAreaInsets();
   
   // State management
@@ -694,12 +698,12 @@ const SleepTrackerScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={24} color="#333" />
+            <Ionicons name="chevron-back" size={24} color={palette.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sleep Tracker</Text>
           <View style={styles.placeholder} />
@@ -718,7 +722,7 @@ const SleepTrackerScreen = () => {
           {/* Last Night's Sleep Card */}
           <View style={styles.lastNightCard}>
             <View style={styles.sleepIconContainer}>
-              <Ionicons name="moon-outline" size={32} color="#8B5CF6" />
+              <Ionicons name="moon-outline" size={32} color={palette.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.lastNightLabel}>
@@ -803,7 +807,7 @@ const SleepTrackerScreen = () => {
             >
               <View style={styles.goalHeader}>
                 <LinearGradient
-                  colors={["#8B5CF6", "#A78BFA"]}
+                  colors={isDark ? [palette.primary, palette.secondary] : ["#8B5CF6", "#A78BFA"]}
                   style={styles.goalIcon}
                 >
                   <Text style={styles.goalEmoji}>💤</Text>
@@ -1216,10 +1220,30 @@ const SleepTrackerScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createPalette = (themeColors, isDark) => ({
+  primary: themeColors.primary,
+  secondary: '#A78BFA',
+  background: themeColors.background,
+  cardBackground: themeColors.cardBackground,
+  textPrimary: themeColors.textPrimary,
+  textSecondary: themeColors.textSecondary,
+  textMuted: themeColors.textMuted,
+  border: themeColors.border,
+  shadow: themeColors.shadow || '#000',
+  iconBackground: isDark ? 'rgba(123, 97, 255, 0.2)' : '#F3E8FF',
+  goalBackground: isDark ? '#1E1F2C' : '#FAFAFB',
+  goalBadgeBackground: isDark ? 'rgba(3, 105, 161, 0.2)' : '#F0F9FF',
+  statusBackground: isDark ? 'rgba(12, 74, 110, 0.2)' : '#F0F9FF',
+  insightBackground: isDark ? 'rgba(123, 97, 255, 0.15)' : '#F8F9FF',
+  recommendationBackground: isDark ? 'rgba(3, 105, 161, 0.15)' : '#F0F9FF',
+  monthHeaderBackground: isDark ? '#1E1F2C' : '#F8F9FA',
+  noLogsBackground: isDark ? '#1E1F2C' : '#F9FAFB',
+});
+
+const createStyles = (palette, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: palette.background,
   },
   safeArea: {
     flex: 1,
@@ -1229,7 +1253,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: palette.background,
+    borderBottomWidth: isDark ? 1 : 0,
+    borderBottomColor: palette.border,
   },
   backButton: {
     marginRight: 16,
@@ -1238,7 +1264,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: palette.textPrimary,
     textAlign: 'center',
   },
   placeholder: {
@@ -1255,29 +1281,31 @@ const styles = StyleSheet.create({
   
   // Last Night's Sleep Card
   lastNightCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: palette.cardBackground,
     borderRadius: 20,
     padding: 16,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
+    shadowColor: palette.shadow,
+    shadowOpacity: isDark ? 0.3 : 0.08,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
     flexDirection: "row",
     alignItems: "center",
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   sleepIconContainer: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#F3E8FF",
+    backgroundColor: palette.iconBackground,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 18,
   },
   lastNightLabel: {
-    color: "#9CA3AF", 
+    color: palette.textMuted, 
     fontSize: 15, 
     fontWeight: "500",
     letterSpacing: 0.3,
@@ -1285,11 +1313,11 @@ const styles = StyleSheet.create({
   lastNightDuration: {
     fontWeight: "700", 
     fontSize: 25, 
-    color: "#1F2937",
+    color: palette.textPrimary,
     letterSpacing: -1,
   },
   lastNightComparison: {
-    color: "#9CA3AF", 
+    color: palette.textMuted, 
     fontSize: 14,
     fontWeight: "500",
   },
@@ -1298,22 +1326,24 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: "800",
     fontSize: 20,
-    color: "#111827",
+    color: palette.textPrimary,
     marginBottom: 12,
     marginLeft: 4,
   },
   
   // Weekly Chart
   weeklyCard: {
-    backgroundColor: "#fff",
+    backgroundColor: palette.cardBackground,
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
+    shadowColor: palette.shadow,
+    shadowOpacity: isDark ? 0.3 : 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   chartContainer: {
     flexDirection: "row",
@@ -1331,14 +1361,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 140,
     borderRadius: 6,
-    // backgroundColor: "#E8E9F3",
     overflow: "hidden",
     justifyContent: "flex-end",
     position: "relative",
   },
   filledBar: {
     width: "100%",
-    backgroundColor: "#7B61FF",
+    backgroundColor: palette.primary,
     borderRadius: 6,
   },
   emptyBar: {
@@ -1346,7 +1375,7 @@ const styles = StyleSheet.create({
     height: 0,
   },
   dayLabel: {
-    color: "#9CA3AF", 
+    color: palette.textMuted, 
     fontSize: 13, 
     fontWeight: "600",
     marginTop: 10,
@@ -1357,27 +1386,27 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   noDataText: {
-    color: "#9CA3AF", 
+    color: palette.textMuted, 
     fontSize: 14, 
     textAlign: "center",
   },
   
   // Sleep Goal Card
   sleepGoalMainCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: palette.cardBackground,
     borderRadius: 20,
     padding: 18,
     marginBottom: 20,
-    shadowColor: "#1F2937",
-    shadowOpacity: 0.06,
+    shadowColor: palette.shadow,
+    shadowOpacity: isDark ? 0.3 : 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   goalSection: {
-    backgroundColor: "#FAFAFB",
+    backgroundColor: palette.goalBackground,
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -1385,9 +1414,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
+    borderColor: palette.border,
+    shadowColor: palette.shadow,
+    shadowOpacity: isDark ? 0.2 : 0.03,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     marginBottom: 16,
@@ -1410,25 +1439,25 @@ const styles = StyleSheet.create({
   goalTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1E293B",
+    color: palette.textPrimary,
     marginBottom: 2,
   },
   goalSubtitle: {
     fontSize: 12, 
-    color: "#64748B",
+    color: palette.textSecondary,
   },
   goalBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    backgroundColor: "#F0F9FF",
+    backgroundColor: palette.goalBadgeBackground,
     borderWidth: 1,
-    borderColor: "#E0F2FE",
+    borderColor: isDark ? 'rgba(3, 105, 161, 0.3)' : '#E0F2FE',
   },
   goalBadgeText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0369A1",
+    color: isDark ? '#60A5FA' : '#0369A1',
   },
   
   // Schedule Section
@@ -1444,7 +1473,7 @@ const styles = StyleSheet.create({
   scheduleTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: palette.textPrimary,
   },
   editButton: {
     paddingHorizontal: 16,
@@ -1453,7 +1482,7 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2563EB',
+    color: palette.primary,
   },
   scheduleContainer: {
     flexDirection: 'row',
@@ -1469,10 +1498,10 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   bedtimeButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: palette.primary,
   },
   wakeupButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: palette.primary,
   },
   scheduleButtonHeader: {
     flexDirection: 'row',
@@ -1501,14 +1530,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   logSleepButtonDisabled: {
-    backgroundColor: "#E5E7EB",
+    backgroundColor: isDark ? '#2A2A3E' : "#E5E7EB",
     shadowOpacity: 0,
     elevation: 0,
   },
   logSleepButtonEnabled: {
-    backgroundColor: "#7B61FF",
-    shadowColor: "#4F46E5",
-    shadowOpacity: 0.3,
+    backgroundColor: palette.primary,
+    shadowColor: palette.primary,
+    shadowOpacity: isDark ? 0.4 : 0.3,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
@@ -1518,7 +1547,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   logSleepButtonTextDisabled: {
-    color: "#9CA3AF",
+    color: palette.textMuted,
   },
   logSleepButtonTextEnabled: {
     color: "#fff",
@@ -1526,29 +1555,29 @@ const styles = StyleSheet.create({
   
   // Status Message
   statusMessage: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: palette.statusBackground,
     borderRadius: 12,
     padding: 12,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E0F2FE',
+    borderColor: isDark ? 'rgba(12, 74, 110, 0.3)' : '#E0F2FE',
   },
   statusText: {
     fontSize: 14,
-    color: '#0C4A6E',
+    color: isDark ? '#93C5FD' : '#0C4A6E',
     textAlign: 'center',
     fontWeight: '500',
   },
   
   // Tip Card
   tipCard: {
-    backgroundColor: "#F3E8FF",
+    backgroundColor: isDark ? 'rgba(123, 97, 255, 0.15)' : "#F3E8FF",
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
   },
   tipText: {
-    color: "#6B21A8",
+    color: isDark ? palette.textPrimary : "#6B21A8",
   },
   tipHighlight: {
     fontWeight: "800",
@@ -1556,34 +1585,36 @@ const styles = StyleSheet.create({
   
   // Insights and Recommendations
   insightsCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 20,
     marginVertical: 8,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 8,
     elevation: 3,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   insightsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#11181C',
+    color: palette.textPrimary,
     marginBottom: 16,
   },
   insightItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#F8F9FF',
+    backgroundColor: palette.insightBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E0E7FF',
+    borderColor: isDark ? 'rgba(123, 97, 255, 0.3)' : '#E0E7FF',
   },
   highPriorityInsight: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7',
     borderColor: '#F59E0B',
   },
   insightIcon: {
@@ -1597,57 +1628,59 @@ const styles = StyleSheet.create({
   insightTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: palette.textPrimary,
     marginBottom: 4,
   },
   insightMessage: {
     fontSize: 14,
-    color: '#6B7280',
+    color: palette.textSecondary,
     marginBottom: 6,
     lineHeight: 20,
   },
   insightAction: {
     fontSize: 13,
-    color: '#7B61FF',
+    color: palette.primary,
     fontWeight: '500',
     fontStyle: 'italic',
   },
   
   recommendationsCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 20,
     marginVertical: 8,
-    shadowColor: '#000',
+    shadowColor: palette.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 8,
     elevation: 3,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   recommendationsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#11181C',
+    color: palette.textPrimary,
     marginBottom: 16,
   },
   recommendationItem: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: palette.recommendationBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E0F2FE',
+    borderColor: isDark ? 'rgba(3, 105, 161, 0.3)' : '#E0F2FE',
   },
   recommendationMessage: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: palette.textPrimary,
     marginBottom: 4,
     lineHeight: 20,
   },
   recommendationAction: {
     fontSize: 13,
-    color: '#0369A1',
+    color: isDark ? '#60A5FA' : '#0369A1',
     fontStyle: 'italic',
   },
   
@@ -1662,43 +1695,49 @@ const styles = StyleSheet.create({
   historyTitle: {
     fontWeight: "800",
     fontSize: 18,
-    color: "#111827",
+    color: palette.textPrimary,
     marginLeft: 4,
   },
   viewAllButton: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: isDark ? '#2A2A3E' : "#F3F4F6",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   viewAllButtonText: {
-    color: "#111827", 
+    color: palette.textPrimary, 
     fontWeight: "700",
   },
   
   noLogsMessage: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: palette.noLogsBackground,
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
     alignItems: 'center',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   noLogsText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: palette.textSecondary,
     textAlign: 'center',
   },
   
   // Log Cards
   logCard: {
-    backgroundColor: "#fff",
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
+    shadowColor: palette.shadow,
+    shadowOpacity: isDark ? 0.3 : 0.05,
     shadowRadius: 8,
     elevation: 3,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   logCardContent: {
     flexDirection: "row",
@@ -1707,16 +1746,16 @@ const styles = StyleSheet.create({
   },
   logDate: {
     fontWeight: "700",
-    color: "#111827",
+    color: palette.textPrimary,
     fontSize: 16,
   },
   logTime: {
-    color: "#6B7280", 
+    color: palette.textSecondary, 
     marginTop: 4,
   },
   logDuration: {
     fontWeight: "800",
-    color: "#7C3AED",
+    color: palette.primary,
     fontSize: 16,
   },
   
@@ -1724,7 +1763,7 @@ const styles = StyleSheet.create({
   monthTitle: {
     fontWeight: "800",
     fontSize: 18,
-    color: "#111827",
+    color: palette.textPrimary,
     marginBottom: 12,
     marginTop: 8,
   },
@@ -1732,29 +1771,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: palette.monthHeaderBackground,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     marginTop: 8,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   monthHeaderText: {
     fontWeight: "700",
     fontSize: 16,
-    color: "#111827",
+    color: palette.textPrimary,
   },
   monthHeaderRight: {
     flexDirection: "row",
     alignItems: "center",
   },
   monthLogCount: {
-    color: "#6B7280",
+    color: palette.textSecondary,
     fontSize: 14,
     marginRight: 8,
   },
   expandIcon: {
     fontSize: 18,
-    color: "#6B7280",
+    color: palette.textSecondary,
   },
   
   // Modal Styles
@@ -1766,22 +1807,24 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: palette.cardBackground,
     borderRadius: 16,
     padding: 20,
     width: '100%',
     maxWidth: 400,
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: palette.textPrimary,
     textAlign: 'center',
     marginBottom: 16,
   },
   modalMessage: {
     fontSize: 16,
-    color: '#6B7280',
+    color: palette.textSecondary,
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 22,
@@ -1794,22 +1837,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   goalOption: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: isDark ? '#2A2A3E' : '#F8F9FA',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: palette.border,
     minWidth: 50,
     alignItems: 'center',
   },
   selectedGoalOption: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
   },
   goalOptionText: {
     fontSize: 16,
-    color: '#1F2937',
+    color: palette.textPrimary,
     fontWeight: '600',
   },
   selectedGoalOptionText: {
@@ -1829,10 +1872,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: isDark ? '#2A2A3E' : '#F3F4F6',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: palette.border,
   },
   cancelButtonText: {
-    color: '#374151',
+    color: palette.textPrimary,
     fontSize: 16,
     fontWeight: '500',
   },

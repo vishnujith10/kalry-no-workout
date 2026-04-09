@@ -3,9 +3,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 
 // Initialize Gemini AI
@@ -20,6 +21,8 @@ const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 const VoicePostCalorieScreen = ({ route, navigation }) => {
   const { analysis, mealName, cleanFoodName } = route.params || {};
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   
   // Add safety checks for route params
   if (!route.params) {
@@ -557,7 +560,7 @@ const VoicePostCalorieScreen = ({ route, navigation }) => {
 
     setIsReanalyzing(true);
     try {
-      const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+      const models = ["gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-8b"];
       let lastError = null;
 
       for (const modelName of models) {
@@ -792,11 +795,11 @@ The JSON object must have this structure:
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? "light" : "dark"} />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color="#333" />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Food Analysis</Text>
         <View style={{ width: 28 }} />
@@ -830,21 +833,21 @@ The JSON object must have this structure:
                     style={styles.tickButton}
                   >
                     {isReanalyzing ? (
-                      <ActivityIndicator size="small" color="#7B61FF" />
+                      <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
-                      <Ionicons name="checkmark-circle" size={24} color="#7B61FF" />
+                      <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity 
                     onPress={() => setIsEditing(false)}
                     style={styles.cancelEditButton}
                   >
-                    <Ionicons name="close-circle-outline" size={24} color="#666" />
+                    <Ionicons name="close-circle-outline" size={24} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </>
               ) : (
                 <TouchableOpacity onPress={() => setIsEditing(true)}>
-                  <Ionicons name="pencil-outline" size={20} color="#7B61FF" />
+                  <Ionicons name="pencil-outline" size={20} color={colors.primary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -855,6 +858,7 @@ The JSON object must have this structure:
               value={mealNameState}
               onChangeText={setMealNameState}
               placeholder="Enter food name"
+              placeholderTextColor={colors.textMuted}
               autoFocus
             />
           ) : (
@@ -943,7 +947,7 @@ The JSON object must have this structure:
           onPress={handleSave}
           disabled={saving}
         >
-          <Ionicons name="bookmark-outline" size={20} color="#7B61FF" />
+          <Ionicons name="bookmark-outline" size={20} color={colors.primary} />
           <Text style={styles.saveButtonText}>
             {saving ? 'Saving...' : 'Save Meal'}
           </Text>
@@ -963,10 +967,10 @@ The JSON object must have this structure:
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -977,7 +981,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
   backButton: {
     marginRight: 16,
@@ -986,11 +991,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   content: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   titleSection: {
     paddingHorizontal: 20,
@@ -999,18 +1005,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   mealName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   editableText: {
     borderBottomWidth: 1, 
-    borderBottomColor: '#6366F1',
+    borderBottomColor: colors.primary,
     paddingVertical: 5,
   },
   editActions: {
@@ -1031,16 +1037,16 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.textSecondary,
   },
   mealTypeTag: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 20,
   },
   mealTypeText: {
-    color: 'white',
+    color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1056,7 +1062,7 @@ const styles = StyleSheet.create({
   mealImage: {
     width: '60%',
     height: 200,
-    backgroundColor: '#F0F4F8',
+    backgroundColor: colors.cardBackground,
     borderRadius: 20,
     overflow: 'hidden',
   },
@@ -1069,16 +1075,16 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'white',
+    backgroundColor: colors.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: isDark ? 0.3 : 0.15,
     shadowRadius: 8,
     elevation: 8,
     borderWidth: 3,
-    borderColor: '#F0F4F8',
+    borderColor: colors.border,
   },
   calorieRingInner: {
     alignItems: 'center',
@@ -1087,11 +1093,11 @@ const styles = StyleSheet.create({
   calorieNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
   },
   calorieLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   macrosGrid: { 
@@ -1116,7 +1122,7 @@ const styles = StyleSheet.create({
   macroLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
     alignSelf: 'flex-start', // Align name to top
     marginTop: 2, // Small adjustment to align with icon
   },
@@ -1126,7 +1132,7 @@ const styles = StyleSheet.create({
   macroValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
   },
   healthScoreSection: {
     flexDirection: 'row',
@@ -1138,7 +1144,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -1146,7 +1152,7 @@ const styles = StyleSheet.create({
   healthScoreNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#fff',
   },
   healthScoreInfo: {
     flex: 1,
@@ -1154,12 +1160,12 @@ const styles = StyleSheet.create({
   healthScoreTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   healthScoreDescription: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   ingredientsSection: {
@@ -1175,19 +1181,21 @@ const styles = StyleSheet.create({
   ingredientsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
   },
   ingredientsCount: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   ingredientItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.cardBackground,
     borderRadius: 10,
     padding: 12,
     marginBottom: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   ingredientEmoji: {
     fontSize: 16,
@@ -1199,17 +1207,17 @@ const styles = StyleSheet.create({
   ingredientName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 1,
   },
   ingredientAmount: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   ingredientCalories: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
   },
   ingredientRight: {
     flexDirection: 'row',
@@ -1234,7 +1242,7 @@ const styles = StyleSheet.create({
   moodTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -1249,10 +1257,12 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   selectedMoodOption: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.primary,
   },
   moodEmoji: {
     fontSize: 24,
@@ -1264,7 +1274,7 @@ const styles = StyleSheet.create({
   },
   moodLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   // Photo container styles (matching PhotoCalorieScreen)
   photoContainer: {
@@ -1292,22 +1302,22 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
   },
   foodName: {
     fontSize: 16,
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   confidence: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
   },
   // Nutrition grid styles (matching PhotoCalorieScreen)
   nutritionGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
   },
@@ -1317,11 +1327,11 @@ const styles = StyleSheet.create({
   nutritionValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#7B61FF',
+    color: colors.primary,
   },
   nutritionLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   // Ingredient row styles (matching PhotoCalorieScreen)
@@ -1334,17 +1344,17 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#7B61FF',
+    backgroundColor: colors.primary,
     marginRight: 12,
   },
   ingredientNameText: {
     fontSize: 16,
-    color: '#333',
+    color: colors.textPrimary,
     fontWeight: '500',
   },
   ingredientQuantity: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   // Mood grid styles (matching PhotoCalorieScreen)
@@ -1354,36 +1364,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   selectedMood: {
-    backgroundColor: '#E8E4FF',
+    backgroundColor: isDark ? `${colors.primary}33` : '#E8E4FF',
     borderWidth: 2,
-    borderColor: '#7B61FF',
+    borderColor: colors.primary,
   },
   // Action container styles (matching PhotoCalorieScreen)
   actionContainer: {
     flexDirection: 'row',
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
   saveButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     paddingVertical: 16,
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   saveButtonText: {
     marginLeft: 6,
     fontSize: 16,
     fontWeight: '600',
-    color: '#7B61FF',
+    color: colors.primary,
   },
   confirmButton: {
     flex: 2,
-    backgroundColor: '#7B61FF',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',

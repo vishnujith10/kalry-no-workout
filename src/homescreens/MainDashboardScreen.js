@@ -5,9 +5,9 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Alert, BackHandler, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KalryAlgorithmManager } from '../algorithms/KalryAlgorithmManager';
 import { DailyCheckInModal } from '../components/DailyCheckInModal';
 import { OnboardingContext } from '../context/OnboardingContext';
+import { useTheme } from '../context/ThemeContext';
 import supabase from '../lib/supabase';
 import { getFoodLogs } from '../utils/api';
 import { getMainDashboardCache, invalidateMainDashboardCache, updateMainDashboardCacheOptimistic } from '../utils/cacheManager';
@@ -28,26 +28,8 @@ export const streakCache = {
 // Export for backward compatibility
 export { invalidateMainDashboardCache, updateMainDashboardCacheOptimistic as updateMainDashboardCache };
 
-const COLORS = {
-  primary: '#7B61FF',
-  primaryLight: '#F3F0FF',
-  text: '#6B4EFF',
-  secondary: '#4B5563',
-  muted: '#9CA3AF',
-  placeholder: '#D1D5DB',
-  background: '#F9FAFB',
-  card: '#FFFFFF',
-  border: '#E5E7EB',
-  streak: '#7B61FF',
-  streakBg: '#F3F0FF',
-  water: '#7B61FF',
-  weight: '#7B61FF',
-  coins: '#7B61FF',
-  rituals: '#7B61FF',
-};
 const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 const RADIUS = { sm: 6, md: 12, lg: 24, xl: 32, full: 9999 };
-const SHADOW = { md: { shadowColor: '#7B61FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 } };
 
 // --- Kalry Calorie Calculation System ---
 function calculateBMR(gender, weight_kg, height_cm, age) {
@@ -106,10 +88,16 @@ const getTodaysQuote = () => {
 // Memoized Streak Badge Component - optimized to prevent unnecessary re-renders
 // Always renders (like ExerciseScreen) - shows "0-day streak" when streak is 0
 const StreakBadge = React.memo(({ calorieStreak }) => {
+  const { colors, isDark } = useTheme();
+  const streakStyles = React.useMemo(
+    () => createStreakStyles(colors, isDark),
+    [colors, isDark]
+  );
+
   return (
-    <View style={styles.streakBadge}>
-      <Text style={styles.streakEmoji}>🔥</Text>
-      <Text style={styles.streakText}>
+    <View style={streakStyles.badge}>
+      <Text style={streakStyles.emoji}>🔥</Text>
+      <Text style={streakStyles.text}>
         {calorieStreak > 0 ? `${calorieStreak}-day streak` : '0-day streak'}
       </Text>
     </View>
@@ -123,30 +111,38 @@ StreakBadge.displayName = 'StreakBadge';
 // Add FooterBar component before MainDashboardScreen
 const FooterBar = ({ navigation, activeTab }) => {
   const insets = useSafeAreaInsets(); // Get safe area insets for bottom navigation
+  const { colors, isDark } = useTheme();
+  const footerStyles = React.useMemo(
+    () => createFooterStyles(colors, isDark),
+    [colors, isDark]
+  );
+  const activeColor = colors.primary || '#7B61FF';
+  const inactiveColor = isDark ? colors.textSecondary || '#9CA3AF' : '#232B3A';
+
   const tabs = [
     {
       key: 'Home',
       label: 'Home',
-      icon: <Ionicons name="home-outline" size={24} color={activeTab === 'Home' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="home-outline" size={24} color={activeColor} />,
       route: 'MainDashboard',
     },
     
     {
       key: 'Meals',
       label: 'Meals',
-      icon: <Ionicons name="restaurant-outline" size={24} color={activeTab === 'Meals' ? '#232B3A' : '#232B3A'} />, // icon size 24
+      icon: <Ionicons name="restaurant-outline" size={24} color={inactiveColor} />, // icon size 24
       route: 'Home',
     },
     {
       key: 'Workout',
       label: 'Workout',
-      icon: <Ionicons name="barbell-outline" size={24} color={activeTab === 'Workout' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="barbell-outline" size={24} color={activeColor} />,
       route: 'Exercise',
     },
     {
       key: 'Profile',
       label: 'Profile',
-      icon: <Ionicons name="person-outline" size={24} color={activeTab === 'Profile' ? '#7B61FF' : '#232B3A'} />,
+      icon: <Ionicons name="person-outline" size={24} color={activeColor} />,
       route: 'Profile',
     },
   ];
@@ -154,7 +150,9 @@ const FooterBar = ({ navigation, activeTab }) => {
   return (
     <View style={[footerStyles.container, { bottom: insets.bottom >= 20 ? (insets.bottom + 16) : 16 }]}>
       <View style={footerStyles.ovalFooter}>
-        {tabs.map(tab => (
+        {tabs.map(tab => {
+          const tabColor = tab.key === activeTab ? activeColor : inactiveColor;
+          return (
           <TouchableOpacity
             key={tab.key}
             style={[
@@ -170,7 +168,7 @@ const FooterBar = ({ navigation, activeTab }) => {
             activeOpacity={0.7}
           >
             {React.cloneElement(tab.icon, {
-              color: tab.key === activeTab ? '#7B61FF' : '#232B3A',
+                color: tabColor,
             })}
             <Text
               style={[
@@ -182,75 +180,21 @@ const FooterBar = ({ navigation, activeTab }) => {
             </Text>
             {tab.key === activeTab && <View style={footerStyles.activeIndicator} />}
           </TouchableOpacity>
-        ))}
+          );
+        })}
       </View>
     </View>
   );
 };
 
-const footerStyles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  ovalFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 35,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    shadowColor: '#7B61FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 16,
-    // Add backdrop filter effect for iOS
-    ...(Platform.OS === 'ios' && {
-      backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    }),
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-    position: 'relative',
-  },
-  activeTab: {
-    // Additional styling for active tab if needed
-  },
-  label: {
-    fontSize: 12,
-    marginTop: 4,
-    color: '#232B3A',
-    letterSpacing: 0.1,
-    fontWeight: '500',
-  },
-  activeLabel: {
-    color: '#7B61FF',
-    fontWeight: '600',
-  },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: -12,
-    width: 30,
-    height: 3,
-    backgroundColor: '#7B61FF',
-    borderRadius: 2,
-  },
-});
-
 const MainDashboardScreen = ({ route }) => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets(); // For ScrollView padding
   const { onboardingData, setOnboardingData } = useContext(OnboardingContext);
+  const { colors, isDark } = useTheme();
+  const palette = React.useMemo(() => createPalette(colors, isDark), [colors, isDark]);
+  const styles = React.useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const COLORS = palette;
   const userName = onboardingData?.name || 'User';
   const { stepsToday, distanceKm, calories: stepCalories, isPedometerAvailable, reloadStepsFromDatabase } = useTodaySteps();
   const stepGoal = onboardingData?.step_goal || 10000;
@@ -727,13 +671,13 @@ const MainDashboardScreen = ({ route }) => {
             // Goal type was already determined above
             
             if (goal && goal > 0 && startWeight > 0) {
-              let prog = 0;
+          let prog = 0;
               let isGoalAchieved = false;
-              
-              console.log('Weight Progress Debug:', {
+          
+          console.log('Weight Progress Debug:', {
                 startWeight,
-                current: latestWeight,
-                goal,
+            current: latestWeight,
+            goal,
                 goalType,
                 profileWeight: profile.weight,
                 totalToLose: goalType === 'lose' ? (startWeight - goal) : null,
@@ -784,7 +728,7 @@ const MainDashboardScreen = ({ route }) => {
                   if (totalToLose > 0) {
                     const remainingRatio = remainingToLose / totalToLose;
                     prog = Math.max(0, Math.min(1, 1 - remainingRatio));
-                  } else {
+          } else {
                     prog = 0;
                   }
                   
@@ -792,7 +736,7 @@ const MainDashboardScreen = ({ route }) => {
                   isGoalAchieved = latestWeight <= goal;
                 } else if (latestWeight < goal) {
                   // Already achieved goal (current < goal)
-                  prog = 1;
+            prog = 1;
                   isGoalAchieved = true;
                 } else {
                   // If start <= goal, can't lose weight (invalid goal)
@@ -840,8 +784,8 @@ const MainDashboardScreen = ({ route }) => {
               if (!isNaN(prog) && isFinite(prog)) {
                 console.log('Calculated progress:', prog, 'Percentage:', Math.round(prog * 100) + '%', 'Goal Type:', goalType, 'Achieved:', isGoalAchieved);
                 setProgress(prog);
-                setGoalAchieved(isGoalAchieved);
-              } else {
+          setGoalAchieved(isGoalAchieved);
+        } else {
                 setProgress(0);
                 setGoalAchieved(false);
               }
@@ -882,10 +826,12 @@ const MainDashboardScreen = ({ route }) => {
         }
       }
     };
-    if (!onboardingData?.weight || !onboardingData?.target_weight) {
+    // Always fetch profile if name, weight, or target_weight is missing
+    // This ensures we get the correct user's data after logout/login
+    if (!onboardingData?.name || !onboardingData?.weight || !onboardingData?.target_weight) {
       fetchUserProfile();
     }
-  }, [onboardingData?.weight, onboardingData?.target_weight, setOnboardingData]);
+  }, [onboardingData?.name, onboardingData?.weight, onboardingData?.target_weight, setOnboardingData]);
 
   // Extract user data from onboardingData (with fallback defaults)
   const age = Number(onboardingData?.age) || 25;
@@ -995,8 +941,8 @@ const MainDashboardScreen = ({ route }) => {
         
         // If data is fresh, skip fetch
         if (isFresh) {
-          return; // Fresh cache - no fetch needed
-        }
+        return; // Fresh cache - no fetch needed
+      }
         // If stale but within cache duration, continue to revalidate in background
       }
       
@@ -1143,28 +1089,7 @@ const MainDashboardScreen = ({ route }) => {
   // Initialize algorithm manager
   useEffect(() => {
     if (realUserId && onboardingData) {
-      const userProfile = {
-        weight: onboardingData.weight || 70,
-        height: onboardingData.height || 170,
-        age: onboardingData.age || 25,
-        gender: onboardingData.gender || 'male',
-        activityLevel: onboardingData.activity_level || 'moderate',
-        goal: onboardingData.goal || 'weightLoss',
-        medicalConditions: [],
-        medications: [],
-        isBreastfeeding: false,
-        menstrualCycle: null,
-        history: [],
-        weightHistory: []
-      };
-      
-      console.log('Creating algorithm manager with userProfile:', userProfile);
-      
-      const manager = new KalryAlgorithmManager(userProfile);
-      setAlgorithmManager(manager);
-      
-      // Start daily routine
-      startDailyRoutine(manager);
+      // Algorithm manager initialization removed
     }
   }, [realUserId, onboardingData]);
 
@@ -1297,8 +1222,8 @@ const MainDashboardScreen = ({ route }) => {
         if (!hasCheckedInTodayRef.current || JSON.stringify(todaysCheckInDataRef.current) !== JSON.stringify(parsedData)) {
           hasCheckedInTodayRef.current = true;
           todaysCheckInDataRef.current = parsedData;
-          setHasCheckedInToday(true);
-          setTodaysCheckInData(parsedData);
+        setHasCheckedInToday(true);
+        setTodaysCheckInData(parsedData);
         }
       }
       
@@ -1315,13 +1240,13 @@ const MainDashboardScreen = ({ route }) => {
       // Auto-open modal only if user hasn't checked in AND hasn't seen modal today AND hasn't shown modal today
       if (!checkInData && !seenModalData && !shownModalData) {
         if (!showCheckIn) {
-          setShowCheckIn(true);
+        setShowCheckIn(true);
         }
         if (!hasShownModalTodayRef.current) {
           hasShownModalTodayRef.current = true;
-          setHasShownModalToday(true);
-          // Persist that we've shown the modal today
-          await AsyncStorage.setItem(`shownModal_${today}`, 'true');
+        setHasShownModalToday(true);
+        // Persist that we've shown the modal today
+        await AsyncStorage.setItem(`shownModal_${today}`, 'true');
         }
       }
     } catch (error) {
@@ -1514,8 +1439,8 @@ const MainDashboardScreen = ({ route }) => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }} edges={['top']}>
-      <StatusBar style="auto" />
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* Daily Check-in Modal */}
       <DailyCheckInModal
         visible={showCheckIn}
@@ -1539,7 +1464,7 @@ const MainDashboardScreen = ({ route }) => {
                 style={styles.goalsModalCloseButton}
                 onPress={() => setShowGoalsModal(false)}
               >
-                <Ionicons name="close" size={24} color="#666" />
+              <Ionicons name="close" size={24} color={COLORS.neutralSecondary} />
               </TouchableOpacity>
             </View>
             
@@ -1612,10 +1537,12 @@ const MainDashboardScreen = ({ route }) => {
       </Modal>
       
       <ScrollView
-        contentContainerStyle={{
-          ...styles.scrollContent,
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
           paddingBottom: Math.max(110, (insets.bottom >= 20 ? insets.bottom + 16 : 16) + 80), // ensure content is visible above footer
-        }}
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Greeting Card */}
@@ -1623,20 +1550,20 @@ const MainDashboardScreen = ({ route }) => {
           <Text style={styles.greetingCardTitle}>Good Morning, {userName}</Text>          
           {/* Daily Check-in Button and Streak */}
           <View style={styles.checkInRow}>
-            <TouchableOpacity
-              style={styles.checkInButton}
-              onPress={handleCheckInButtonPress}
-            >
-              <Ionicons name="checkmark-circle" size={20} color="#7B61FF" />
-              <Text style={styles.checkInButtonText}>
-                {hasCheckedInToday ? 'View Check-in' : 'Daily Check-in'}
-              </Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.checkInButton}
+            onPress={handleCheckInButtonPress}
+          >
+              <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
+            <Text style={styles.checkInButtonText}>
+              {hasCheckedInToday ? 'View Check-in' : 'Daily Check-in'}
+            </Text>
+          </TouchableOpacity>
             <StreakBadge calorieStreak={calorieStreak} />
           </View>
           {ritualStreak !== null ? (
             <View style={styles.streakRowBlue}>
-              <Ionicons name="water" size={18} color="#3B82F6" style={{ marginRight: 6 }} />
+              <Ionicons name="water" size={18} color={COLORS.primary} style={{ marginRight: 6 }} />
               <Text style={styles.greetingCardStreak}>{ritualStreak}-day consistency streak</Text>
             </View>
           ) : null}
@@ -1669,7 +1596,7 @@ const MainDashboardScreen = ({ route }) => {
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                   <View style={styles.fireIconContainer}>
-                    <MaterialCommunityIcons name="fire" size={28} color="#FF6B35" />
+                    <MaterialCommunityIcons name="fire" size={28} color={COLORS.accentOrange} />
                   </View>
                   <Text style={styles.statLabelCustom}>Calories{`\n`}Today</Text>
                 </View>
@@ -1683,7 +1610,7 @@ const MainDashboardScreen = ({ route }) => {
                 activeOpacity={0.8}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                  <MaterialCommunityIcons name="dumbbell" size={20} color="#3B82F6" style={{ marginRight: 8 }} />
+                  <MaterialCommunityIcons name="dumbbell" size={20} color={COLORS.accentBlue} style={{ marginRight: 8 }} />
                   <Text style={styles.statLabelCustom}>Strength{`\n`}Today</Text>
                 </View>
                 <Text style={[styles.statValueCustom, { textAlign: 'left' }]}> {`\t`} {todayWorkouts}</Text>
@@ -1717,13 +1644,12 @@ const MainDashboardScreen = ({ route }) => {
                       <MaterialCommunityIcons 
                         name="water-outline" 
                         size={28} 
-                        color="black" 
+                        color={COLORS.text} 
                         style={styles.hydrationDropIcon} 
                       />
                       <Text style={[
                         styles.hydrationPercentage,
                         { 
-                          color: "black",
                           textShadowColor: "#000",
                           textShadowOffset: { width: 0.5, height: 0.5 },
                           textShadowRadius: 1,
@@ -1773,39 +1699,27 @@ const MainDashboardScreen = ({ route }) => {
             {/* Steps Card */}
             <View style={{ flex: 1, marginRight: 8 }}>
               <TouchableOpacity
-                style={{
-                  backgroundColor: '#B6E6F6',
-                  borderRadius: 24,
-                  padding: 20,
-                  minWidth: 0,
-                  alignItems: 'flex-start',
-                  shadowColor: '#000',
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 3,
-                  position: 'relative',
-                }}
+                style={styles.stepsHighlightCard}
                 onPress={() => navigation.navigate('StepTrackerScreen')}
                 activeOpacity={0.85}
               >
                 {/* Icon and expand */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ backgroundColor: '#E0F7FA', borderRadius: 18, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-                      <MaterialCommunityIcons name="walk" size={22} color="#222" />
+                    <View style={styles.stepsHighlightIcon}>
+                      <MaterialCommunityIcons name="walk" size={22} color={COLORS.stepsIcon} />
                     </View>
-                    <Text style={{ fontFamily: 'Lexend-Bold', fontSize: 18, color: '#4A6FA5', marginLeft: 10 }}>
+                    <Text style={styles.stepsHighlightTitle}>
                       Walk Steps
                     </Text>
                   </View>
                 </View>
-                <View style={{ flexDirection: 'row', marginTop: 8, marginBottom: 8 }}>
-                  <View style={{ borderWidth: 1, borderColor: '#222', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 2 }}>
-                    <Text style={{ fontFamily: 'Lexend-Regular', fontSize: 12, color: '#222' }}>{percent}% Goal</Text>
+                <View style={styles.stepsHighlightBadgeRow}>
+                  <View style={styles.stepsHighlightBadge}>
+                    <Text style={styles.stepsHighlightBadgeText}>{percent}% Goal</Text>
                   </View>
                 </View>
-                <Text style={{ fontFamily: 'Lexend-Bold', fontSize: 28, color: '#222', marginTop: 2 }}>{stepsToday.toLocaleString()}</Text>
+                <Text style={styles.stepsHighlightValue}>{stepsToday.toLocaleString()}</Text>
                 {/* {isPedometerAvailable !== 'true' && (
                   <Text style={{ fontFamily: 'Manrope-Regular', fontSize: 14, color: '#e74c3c', marginTop: 2 }}>
                     Step sensor not available on this device.
@@ -1816,39 +1730,27 @@ const MainDashboardScreen = ({ route }) => {
             {/* Sleep Card */}
             <View style={{ flex: 1, marginLeft: 8 }}>
               <TouchableOpacity
-                style={{
-                  backgroundColor: '#E6D6F6',
-                  borderRadius: 24,
-                  padding: 20,
-                  minWidth: 0,
-                  alignItems: 'flex-start',
-                  shadowColor: '#000',
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 3,
-                  position: 'relative',
-                }}
+                style={styles.sleepHighlightCard}
                 onPress={() => navigation.navigate('SleepTrackerScreen')}
                 activeOpacity={0.85}
               >
                 {/* Icon and expand */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ backgroundColor: '#F3E8FF', borderRadius: 18, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-                      <MaterialCommunityIcons name="moon-waning-crescent" size={22} color="#7C3AED" />
+                    <View style={styles.sleepHighlightIcon}>
+                      <MaterialCommunityIcons name="moon-waning-crescent" size={22} color={COLORS.sleepAccent} />
                     </View>
-                    <Text style={{ fontFamily: 'Lexend-Bold', fontSize: 18, color: '#7C3AED', marginLeft: 10 }}>
+                    <Text style={styles.sleepHighlightTitle}>
                       Sleep
                     </Text>
                   </View>
                 </View>
-                <View style={{ flexDirection: 'row', marginTop: 8, marginBottom: 8 }}>
-                  <View style={{ borderWidth: 1, borderColor: '#7C3AED', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 2 }}>
-                    <Text style={{ fontFamily: 'Lexend-Regular', fontSize: 12, color: '#7C3AED' }}>{todaySleepPercent}% of {sleepGoal}h</Text>
+                <View style={styles.sleepHighlightBadgeRow}>
+                  <View style={styles.sleepHighlightBadge}>
+                    <Text style={styles.sleepHighlightBadgeText}>{todaySleepPercent}% of {sleepGoal}h</Text>
                   </View>
                 </View>
-                <Text style={{ fontFamily: 'Lexend-Bold', fontSize: 28, color: '#222', marginTop: 2 }}>{todaySleepDuration}</Text>
+                <Text style={styles.sleepHighlightValue}>{todaySleepDuration}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1858,7 +1760,7 @@ const MainDashboardScreen = ({ route }) => {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
               <MaterialCommunityIcons name="scale-bathroom" size={26} color={COLORS.primary} style={{ marginRight: 8 }} />
               <Text style={styles.weightJourneyLabelV2}>Weight Journey</Text>
-              <Ionicons name="camera-outline" size={22} color="#444" style={{ marginLeft: 'auto' }} />
+              <Ionicons name="camera-outline" size={22} color={COLORS.neutralIcon} style={{ marginLeft: 'auto' }} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginBottom: 8 }}>
               <View style={{ flex: 1 }}>
@@ -1913,10 +1815,16 @@ const MainDashboardScreen = ({ route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  scrollContent: { paddingBottom: 32 },
+const createStyles = (COLORS, isDark) => {
+  const SHADOW = createShadowStyles(COLORS, isDark);
+  return StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: { paddingBottom: 32, backgroundColor: COLORS.background },
   greetingCard: {
-    backgroundColor: '#EAF3FF',
+    backgroundColor: COLORS.greetingCardBg,
     borderRadius: 18,
     marginHorizontal: 18,
     marginTop: 24,
@@ -1940,14 +1848,14 @@ const styles = StyleSheet.create({
   greetingCardTitle: {
     fontSize: 22,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
     marginBottom: 2,
     textAlign: 'left',
   },
   greetingCardVibe: {
     fontSize: 15,
     fontFamily: 'Manrope-Regular',
-    color: '#222B45',
+    color: COLORS.secondary,
     marginBottom: 2,
     textAlign: 'left',
   },
@@ -1960,24 +1868,24 @@ const styles = StyleSheet.create({
   checkInButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FF',
+    backgroundColor: COLORS.primaryLight,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#7B61FF',
+    borderColor: COLORS.primary,
     alignSelf: 'flex-start',
   },
   checkInButtonText: {
     fontSize: 14,
     fontFamily: 'Lexend-Medium',
-    color: '#7B61FF',
+    color: COLORS.primary,
     marginLeft: 6,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3F2',
+    backgroundColor: COLORS.streakBg,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 16,
@@ -1989,10 +1897,10 @@ const styles = StyleSheet.create({
   streakText: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 12,
-    color: '#181A20',
+    color: COLORS.text,
   },
   greetingCardStreak: {
-    color: '#3B82F6',
+    color: COLORS.accentBlue,
     fontFamily: 'Manrope-Bold',
     fontSize: 15,
     textAlign: 'left',
@@ -2080,21 +1988,21 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
     textAlign: 'center',
     lineHeight: 20,
   },
   statValue: {
     fontSize: 20,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
     marginTop: 4,
     textAlign: 'center',
   },
   statSub: {
     fontSize: 12,
     fontFamily: 'Manrope-Regular',
-    color: '#4B5563',
+    color: COLORS.secondary,
     marginTop: 4,
     textAlign: 'center',
   },
@@ -2114,14 +2022,14 @@ const styles = StyleSheet.create({
   hydrationTitle: {
     fontSize: 20,
     fontFamily: 'Lexend-Bold',
-    color: '#181A20',
+    color: COLORS.text,
     marginBottom: 8,
     fontWeight: 'bold',
   },
   hydrationGoal: {
     fontSize: 16,
     fontFamily: 'Lexend-SemiBold',
-    color: '#181A20',
+    color: COLORS.text,
     marginRight: 8,
   },
   hydrationEmojis: {
@@ -2139,10 +2047,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#A182F9',
+    borderColor: COLORS.primary,
   },
   hydrationBtnText: {
-    color: '#374151', // Dark gray text for buttons
+    color: COLORS.text,
     fontFamily: 'Lexend-SemiBold',
     fontSize: 14,
     fontWeight: '600',
@@ -2165,13 +2073,13 @@ const styles = StyleSheet.create({
   sleepValue: {
     fontSize: 20,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
     marginTop: 4,
   },
   sleepSub: {
     fontSize: 12,
     fontFamily: 'Manrope-Regular',
-    color: '#4B5563',
+    color: COLORS.secondary,
     marginTop: 4,
   },
   sleepBtn: {
@@ -2204,8 +2112,108 @@ const styles = StyleSheet.create({
   stepsValue: {
     fontSize: 20,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
     marginTop: 4,
+  },
+  stepsHighlightCard: {
+    backgroundColor: COLORS.stepsCardBg,
+    borderRadius: 24,
+    padding: 20,
+    minWidth: 0,
+    alignItems: 'flex-start',
+    shadowColor: isDark ? '#000' : '#000',
+    shadowOpacity: isDark ? 0.35 : 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+    position: 'relative',
+  },
+  stepsHighlightIcon: {
+    backgroundColor: COLORS.stepsBadgeBg,
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepsHighlightTitle: {
+    fontFamily: 'Lexend-Bold',
+    fontSize: 18,
+    color: COLORS.text,
+    marginLeft: 10,
+  },
+  stepsHighlightBadgeRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  stepsHighlightBadge: {
+    borderWidth: 1,
+    borderColor: COLORS.stepsIcon,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+  },
+  stepsHighlightBadgeText: {
+    fontFamily: 'Lexend-Regular',
+    fontSize: 12,
+    color: COLORS.stepsIcon,
+  },
+  stepsHighlightValue: {
+    fontFamily: 'Lexend-Bold',
+    fontSize: 28,
+    color: COLORS.text,
+    marginTop: 2,
+  },
+  sleepHighlightCard: {
+    backgroundColor: COLORS.sleepCardBg,
+    borderRadius: 24,
+    padding: 20,
+    minWidth: 0,
+    alignItems: 'flex-start',
+    shadowColor: isDark ? '#000' : '#000',
+    shadowOpacity: isDark ? 0.35 : 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+    position: 'relative',
+  },
+  sleepHighlightIcon: {
+    backgroundColor: isDark ? 'rgba(124, 58, 237, 0.25)' : '#F3E8FF',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sleepHighlightTitle: {
+    fontFamily: 'Lexend-Bold',
+    fontSize: 18,
+    color: COLORS.sleepAccent,
+    marginLeft: 10,
+  },
+  sleepHighlightBadgeRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  sleepHighlightBadge: {
+    borderWidth: 1,
+    borderColor: COLORS.sleepAccent,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+  },
+  sleepHighlightBadgeText: {
+    fontFamily: 'Lexend-Regular',
+    fontSize: 12,
+    color: COLORS.sleepAccent,
+  },
+  sleepHighlightValue: {
+    fontFamily: 'Lexend-Bold',
+    fontSize: 28,
+    color: COLORS.text,
+    marginTop: 2,
   },
   weightJourneyCard: {
     backgroundColor: COLORS.card,
@@ -2234,22 +2242,22 @@ const styles = StyleSheet.create({
   weightJourneyCurrentLabel: {
     fontSize: 12,
     fontFamily: 'Manrope-Regular',
-    color: '#4B5563',
+    color: COLORS.secondary,
   },
   weightJourneyCurrentValue: {
     fontSize: 16,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
   },
   weightJourneyGoalLabel: {
     fontSize: 12,
     fontFamily: 'Manrope-Regular',
-    color: '#4B5563',
+    color: COLORS.secondary,
   },
   weightJourneyGoalValue: {
     fontSize: 16,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
   },
   weightJourneyBarBg: {
     height: 8,
@@ -2285,7 +2293,7 @@ const styles = StyleSheet.create({
   habitsTitle: {
     fontSize: 15,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
     marginBottom: 12,
   },
   habitRow: {
@@ -2296,7 +2304,7 @@ const styles = StyleSheet.create({
   habitText: {
     fontSize: 14,
     fontFamily: 'Manrope-Regular',
-    color: '#4B5563',
+    color: COLORS.secondary,
     marginLeft: 8,
   },
   habitCheck: {
@@ -2304,7 +2312,7 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: '#9CA3AF',
+    borderColor: COLORS.border,
     marginLeft: 'auto',
   },
   habitCheckFilled: {
@@ -2323,7 +2331,7 @@ const styles = StyleSheet.create({
   recentMealsLabel: {
     fontSize: 15,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
   },
   recentMealsAddBtn: {
     padding: 8,
@@ -2352,13 +2360,13 @@ const styles = StyleSheet.create({
   mealTitle: {
     fontSize: 13,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
     marginBottom: 4,
   },
   mealKcal: {
     fontSize: 12,
     fontFamily: 'Manrope-Bold',
-    color: '#11181C',
+    color: COLORS.text,
   },
   statRowCustom: {
     flexDirection: 'row',
@@ -2368,14 +2376,13 @@ const styles = StyleSheet.create({
   },
   statCardCustom: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 22,
     padding: 21,
     marginHorizontal: 4,
-    // Slightly more visible black box shadow
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 12,
     elevation: 5,
     minWidth: 0,
@@ -2384,35 +2391,34 @@ const styles = StyleSheet.create({
   statLabelCustom: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 16,
-    color: '#11181C',
+    color: COLORS.text,
   },
   statValueCustom: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 22,
-    color: '#11181C',
+    color: COLORS.text,
     marginBottom: 4,
   },
   statValueCustom2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 20,
-    color: '#11181C',
+    color: COLORS.text,
     marginBottom: 4,
   },
   statSubCustom: {
     fontFamily: 'Lexend-Regular',
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.secondary,
     marginTop: 2,
   },
   statRowBg: {
-    backgroundColor: '#F6F7FB', // or #F3F4F6 for a subtle dark background
     paddingVertical: 8,
     paddingHorizontal: 0,
   },
   shadowWrapper: {
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 18,
     elevation: 5,
     borderRadius: 22,
@@ -2420,16 +2426,16 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   cardCustom: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 22,
     padding: 18,
   },
   hydrationCardCustom: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 24,
     padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
+    shadowColor: isDark ? '#000' : '#000',
+    shadowOpacity: isDark ? 0.35 : 0.08,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
@@ -2444,7 +2450,7 @@ const styles = StyleSheet.create({
   hydrationBottleContainer: {
     width: 60,
     height: 120,
-    backgroundColor: '#E5E7EB', // Light gray background
+    backgroundColor: COLORS.border,
     borderRadius: 7,
     overflow: 'hidden',
     position: 'relative',
@@ -2454,7 +2460,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#D1E0F2', // Light blue fill
+    backgroundColor: COLORS.primaryLight,
     minHeight: 20,
   },
   hydrationIconPercentageContainer: {
@@ -2475,6 +2481,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend-Bold',
     fontSize: 14,
     fontWeight: 'bold',
+    color: COLORS.text,
   },
   hydrationDetailsSection: {
     flex: 1,
@@ -2486,13 +2493,13 @@ const styles = StyleSheet.create({
   },
   sleepCardCustom: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 22,
     padding: 22,
     marginHorizontal: 4,
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 12,
     elevation: 5,
     minWidth: 0,
@@ -2501,18 +2508,18 @@ const styles = StyleSheet.create({
   sleepLabelCustom: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 16,
-    color: '#181A20',
+    color: COLORS.text,
   },
   sleepTimeCustom: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 28,
-    color: '#181A20',
+    color: COLORS.text,
     marginBottom: 4,
   },
   sleepRefreshedCustom: {
     fontFamily: 'Manrope-Regular',
     fontSize: 16,
-    color: '#6B7280',
+    color: COLORS.secondary,
   },
   logSleepBtnCustom: {
     borderWidth: 2,
@@ -2529,13 +2536,13 @@ const styles = StyleSheet.create({
   },
   stepsCardCustom: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 22,
     padding: 22,
     marginHorizontal: 4,
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 12,
     elevation: 5,
     minWidth: 0,
@@ -2545,28 +2552,28 @@ const styles = StyleSheet.create({
   stepsLabelCustom: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 16,
-    color: '#181A20',
+    color: COLORS.text,
   },
   stepsCountCustom: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 22,
-    color: '#181A20',
+    color: COLORS.text,
     marginBottom: 2,
   },
   stepsGoodCustom: {
     fontFamily: 'Manrope-Regular',
     fontSize: 16,
-    color: '#6B7280',
+    color: COLORS.secondary,
   },
   sleepCardV2: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 28,
     padding: 24,
     marginHorizontal: 6,
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 18,
     elevation: 6,
     minWidth: 0,
@@ -2575,18 +2582,18 @@ const styles = StyleSheet.create({
   sleepLabelV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 18,
-    color: '#181A20',
+    color: COLORS.text,
   },
   sleepTimeV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 32,
-    color: '#181A20',
+    color: COLORS.text,
     marginBottom: 6,
   },
   sleepRefreshedV2: {
     fontFamily: 'Manrope-Regular',
     fontSize: 17,
-    color: '#6B7280',
+    color: COLORS.muted,
   },
   logSleepBtnV2: {
     borderWidth: 2,
@@ -2603,13 +2610,13 @@ const styles = StyleSheet.create({
   },
   stepsCardV2: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 28,
     padding: 24,
     marginHorizontal: 6,
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 18,
     elevation: 6,
     minWidth: 0,
@@ -2619,46 +2626,46 @@ const styles = StyleSheet.create({
   stepsLabelV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 18,
-    color: '#181A20',
+    color: COLORS.text,
   },
   stepsCountV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 24,
-    color: '#181A20',
+    color: COLORS.text,
     marginBottom: 2,
   },
   stepsGoodV2: {
     fontFamily: 'Manrope-Regular',
     fontSize: 17,
-    color: '#6B7280',
+    color: COLORS.muted,
   },
   weightJourneyCardV2: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 28,
     padding: 24,
     marginHorizontal: 6,
     marginBottom: 18,
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 18,
     elevation: 6,
   },
   weightJourneyLabelV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 18,
-    color: '#181A20',
+    color: COLORS.text,
   },
   weightJourneySubV2: {
     fontFamily: 'Manrope-Regular',
     fontSize: 15,
-    color: '#888',
+    color: COLORS.neutralSecondary,
     marginBottom: 2,
   },
   weightJourneyCurrentV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 24,
-    color: '#181A20',
+    color: COLORS.text,
   },
   weightJourneyGoalV2: {
     fontFamily: 'Lexend-SemiBold',
@@ -2667,7 +2674,7 @@ const styles = StyleSheet.create({
   },
   weightJourneyBarBgV2: {
     height: 10,
-    backgroundColor: '#F1F1F5',
+    backgroundColor: COLORS.surfaceMuted,
     borderRadius: 6,
     marginBottom: 18,
     marginTop: 2,
@@ -2700,21 +2707,21 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   habitsCardV2: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 28,
     padding: 24,
     marginHorizontal: 6,
     marginBottom: 18,
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 18,
     elevation: 6,
   },
   habitsTitleV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 18,
-    color: '#181A20',
+    color: COLORS.text,
     marginBottom: 18,
   },
   habitRowV2: {
@@ -2725,7 +2732,7 @@ const styles = StyleSheet.create({
   habitTextV2: {
     fontFamily: 'Lexend-Regular',
     fontSize: 16,
-    color: '#181A20',
+    color: COLORS.text,
     flex: 1,
   },
   habitCheckFilledV2: {
@@ -2740,8 +2747,8 @@ const styles = StyleSheet.create({
     height: 26,
     borderRadius: 13,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#fff',
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
     marginLeft: 12,
   },
   recentMealsHeaderV2: {
@@ -2756,7 +2763,7 @@ const styles = StyleSheet.create({
   recentMealsTitleV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 20,
-    color: '#181A20',
+    color: COLORS.text,
   },
   recentMealsScrollV2: {
     marginLeft: 20,
@@ -2765,14 +2772,14 @@ const styles = StyleSheet.create({
   },
   mealCardV2: {
     width: 142,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.card,
     borderRadius: 22,
     padding: 12,
     marginRight: 16,
     alignItems: 'center',
-    shadowColor: '#181A20',
+    shadowColor: isDark ? '#000' : '#181A20',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.10,
+    shadowOpacity: isDark ? 0.35 : 0.10,
     shadowRadius: 12,
     elevation: 5,
   },
@@ -2781,18 +2788,18 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 16,
     marginBottom: 10,
-    backgroundColor: '#F3F0FF',
+    backgroundColor: COLORS.primaryLight,
   },
   mealNameV2: {
     fontFamily: 'Lexend-SemiBold',
     fontSize: 16,
-    color: '#181A20',
+    color: COLORS.text,
     marginBottom: 2,
   },
   mealKcalV2: {
     fontFamily: 'Manrope-Regular',
     fontSize: 15,
-    color: '#888',
+    color: COLORS.neutralSecondary,
   },
   
   // Goals Modal Styles
@@ -2804,7 +2811,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   goalsModalContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.card,
     borderRadius: 20,
     width: '100%',
     maxHeight: '80%',
@@ -2818,12 +2825,12 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: COLORS.border,
   },
   goalsModalTitle: {
     fontSize: 20,
     fontFamily: 'Lexend-Bold',
-    color: '#11181C',
+    color: COLORS.text,
   },
   goalsModalCloseButton: {
     padding: 4,
@@ -2838,63 +2845,63 @@ const styles = StyleSheet.create({
   goalSectionTitle: {
     fontSize: 16,
     fontFamily: 'Lexend-SemiBold',
-    color: '#11181C',
+    color: COLORS.text,
     marginBottom: 8,
   },
   calorieGoalCard: {
-    backgroundColor: '#F8F9FF',
+    backgroundColor: COLORS.cardSecondary,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E0E7FF',
+    borderColor: COLORS.primaryLight,
   },
   calorieGoalRange: {
     fontSize: 18,
     fontFamily: 'Lexend-Bold',
-    color: '#7B61FF',
+    color: COLORS.primary,
     marginBottom: 4,
   },
   calorieGoalTarget: {
     fontSize: 14,
     fontFamily: 'Manrope-Medium',
-    color: '#666',
+    color: COLORS.secondary,
     marginBottom: 8,
   },
   calorieGoalMessage: {
     fontSize: 14,
     fontFamily: 'Manrope-Regular',
-    color: '#444',
+    color: COLORS.secondary,
     lineHeight: 20,
   },
   checkInSummaryCard: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: COLORS.cardSecondary,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E0F2FE',
+    borderColor: COLORS.border,
   },
   checkInSummaryText: {
     fontSize: 14,
     fontFamily: 'Manrope-Medium',
-    color: '#444',
+    color: COLORS.text,
     marginBottom: 4,
   },
   insightCard: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: isDark ? 'rgba(251, 191, 36, 0.12)' : '#FFF7ED',
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: isDark ? 'rgba(251, 191, 36, 0.4)' : '#FED7AA',
   },
   insightText: {
     fontSize: 13,
     fontFamily: 'Manrope-Regular',
-    color: '#444',
+    color: COLORS.secondary,
     lineHeight: 18,
   },
   goalsModalButton: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: COLORS.primary,
     marginHorizontal: 20,
     marginVertical: 20,
     paddingVertical: 14,
@@ -2904,7 +2911,7 @@ const styles = StyleSheet.create({
   goalsModalButtonText: {
     fontSize: 16,
     fontFamily: 'Lexend-SemiBold',
-    color: '#FFFFFF',
+    color: COLORS.card,
   },
   fireIconContainer: {
     position: 'relative',
@@ -2925,7 +2932,7 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 12,
     fontFamily: 'Manrope-Medium',
-    color: '#666',
+    color: COLORS.neutralSecondary,
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 8,
@@ -2942,6 +2949,130 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
+});
+};
+
+const createShadowStyles = (COLORS, isDark) => ({
+  md: {
+    shadowColor: isDark ? '#000' : COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.35 : 0.07,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  lg: {
+    shadowColor: isDark ? '#000' : COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: isDark ? 0.4 : 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+});
+
+const createFooterStyles = (colors, isDark) => StyleSheet.create({
+  container: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  ovalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: isDark ? colors.cardSecondary || 'rgba(24, 32, 44, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 35,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    shadowColor: isDark ? '#000' : colors.primary || '#7B61FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.35 : 0.1,
+    shadowRadius: 20,
+    elevation: 16,
+    ...(Platform.OS === 'ios' && {
+      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.85)',
+    }),
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    position: 'relative',
+  },
+  activeTab: {},
+  label: {
+    fontSize: 12,
+    marginTop: 4,
+    color: colors.textSecondary || '#232B3A',
+    letterSpacing: 0.1,
+    fontWeight: '500',
+  },
+  activeLabel: {
+    color: colors.primary || '#7B61FF',
+    fontWeight: '600',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    bottom: -12,
+    width: 30,
+    height: 3,
+    backgroundColor: colors.primary || '#7B61FF',
+    borderRadius: 2,
+  },
+});
+
+const createStreakStyles = (colors, isDark) => StyleSheet.create({
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255, 115, 64, 0.18)' : '#FEF3F2',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+  },
+  emoji: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+  text: {
+    fontFamily: 'Lexend-SemiBold',
+    fontSize: 12,
+    color: colors.text || '#181A20',
+  },
+});
+
+const createPalette = (colors, isDark) => ({
+  primary: colors.primary || '#7B61FF',
+  primaryLight: isDark ? 'rgba(123, 97, 255, 0.18)' : '#F3F0FF',
+  text: colors.text || (isDark ? '#F8FAFC' : '#11181C'),
+  secondary: colors.textSecondary || (isDark ? '#CBD5F5' : '#4B5563'),
+  muted: isDark ? '#9CA3AF' : '#9CA3AF',
+  placeholder: isDark ? '#6B7280' : '#D1D5DB',
+  background: colors.background || (isDark ? '#0F172A' : '#F9FAFB'),
+  card: colors.card || (isDark ? '#1E2533' : '#FFFFFF'),
+  cardSecondary: colors.cardSecondary || (isDark ? '#1F2937' : '#FFFFFF'),
+  border: colors.border || (isDark ? '#2F3645' : '#E5E7EB'),
+  streak: colors.primary || '#7B61FF',
+  streakBg: isDark ? 'rgba(123, 97, 255, 0.12)' : '#F3F0FF',
+  water: colors.primary || '#7B61FF',
+  weight: colors.primary || '#7B61FF',
+  coins: colors.primary || '#7B61FF',
+  rituals: colors.primary || '#7B61FF',
+  surfaceMuted: isDark ? '#1A2130' : '#F6F7FB',
+  greetingCardBg: isDark ? (colors.cardSecondary || '#1F2635') : '#EAF3FF',
+  accentOrange: isDark ? '#FF9E6E' : '#FF6B35',
+  accentBlue: isDark ? '#60A5FA' : '#3B82F6',
+  neutralIcon: isDark ? '#CBD5F5' : '#444',
+  neutralSecondary: isDark ? '#A0AEC0' : '#666',
+  stepsIcon: isDark ? '#E2E8F0' : '#222',
+  sleepAccent: isDark ? '#D8B4FE' : '#7C3AED',
+  sleepCardBg: isDark ? 'rgba(124, 58, 237, 0.18)' : '#E6D6F6',
+  stepsCardBg: isDark ? 'rgba(59, 130, 246, 0.18)' : '#B6E6F6',
+  stepsBadgeBg: isDark ? 'rgba(148, 163, 184, 0.24)' : '#E0F7FA',
 });
 
 export default React.memo(MainDashboardScreen); 

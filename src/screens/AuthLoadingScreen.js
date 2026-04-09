@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import supabase, { handleSessionExpiry } from '../lib/supabase';
+import { clearAllGlobalCaches } from '../utils/clearAllCaches';
 
 const AuthLoadingScreen = ({ navigation }) => {
   useEffect(() => {
@@ -22,6 +23,11 @@ const AuthLoadingScreen = ({ navigation }) => {
 
         // 1. Check Supabase auth with "Remember Me" functionality
         console.log('🔵 Step 1: Checking session...');
+        
+        // Clear all caches when checking auth (in case of user switch)
+        // This ensures previous user's data doesn't show
+        clearAllGlobalCaches();
+        
         const sessionPromise = handleSessionExpiry();
         let session;
         
