@@ -50,6 +50,8 @@ import MinimalSignupTestScreen from './src/screens/MinimalSignupTestScreen';
 import TargetSummaryScreen from './src/screens/TargetSummaryScreen';
 import SleepTrackerScreen from './src/sleepscreen/SleepTrackerScreen';
 import StepTrackerScreen from './src/steptrackerscreen/StepTrackerScreen';
+import WeightTrackerScreen from './src/weightscreen/WeightTrackerScreen';
+import AddWeightScreen from './src/weightscreen/AddWeightScreen';
 import WelcomeScreen from './src/welcomescreen/WelcomeScreen';
 
 if (typeof global.structuredClone !== 'function') {
@@ -215,6 +217,8 @@ export default function App() {
                 <Stack.Screen name="SleepTrackerScreen" component={SleepTrackerScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="HydrationTrackerScreen" component={HydrationTrackerScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="StepTrackerScreen" component={StepTrackerScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="WeightTrackerScreen" component={WeightTrackerScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="AddWeightScreen" component={AddWeightScreen} options={{ headerShown: false }} />
                 <Stack.Screen 
                   name="SavedMealsScreen" 
                   component={SavedMealsScreen} 
