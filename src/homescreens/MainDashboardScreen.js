@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Alert, BackHandler, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, BackHandler, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DailyCheckInModal } from '../components/DailyCheckInModal';
 import { OnboardingContext } from '../context/OnboardingContext';
@@ -1029,6 +1029,28 @@ const MainDashboardScreen = ({ route }) => {
   const [hydrationLoading, setHydrationLoading] = useState(() => !globalCache.cachedHydrationData);
   const [hydrationRecordId, setHydrationRecordId] = useState(() => globalCache.cachedHydrationData?.hydrationRecordId || null);
 
+  // Animated water fill for hydration bottle
+  const hydrationAnim = useRef(new Animated.Value(
+    globalCache.cachedHydrationData
+      ? Math.min(100, (globalCache.cachedHydrationData.currentIntake / (globalCache.cachedHydrationData.dailyGoal || 2.5)) * 100)
+      : 0
+  )).current;
+
+  useEffect(() => {
+    const target = hydrationLoading ? 0 : Math.min(100, (currentIntake / (dailyGoal || 2.5)) * 100);
+    Animated.timing(hydrationAnim, {
+      toValue: target,
+      duration: 800,
+      useNativeDriver: false,
+    }).start();
+  }, [currentIntake, dailyGoal, hydrationLoading]);
+
+  const animatedBottleFillHeight = hydrationAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+    extrapolate: 'clamp',
+  });
+
   useFocusEffect(
     React.useCallback(() => {
       if (!realUserId) return;
@@ -1631,14 +1653,13 @@ const MainDashboardScreen = ({ route }) => {
                 <View style={styles.hydrationProgressContainer}>
                   <View style={styles.hydrationBottleContainer}>
                     {/* Progress Fill */}
-                    <View style={[
-                      styles.hydrationBottleFill, 
-                      { 
-                        height: hydrationLoading ? '0%' : currentIntake === 0 ? '0%' : `${Math.min(100, (currentIntake / dailyGoal) * 100)}%`,
-                        minHeight: currentIntake === 0 ? 0 : 20
+                    <Animated.View style={[
+                      styles.hydrationBottleFill,
+                      {
+                        height: animatedBottleFillHeight,
+                        minHeight: 0,
                       }
-                    ]}>
-                    </View>
+                    ]} />
                     {/* Icon and Percentage - Always centered */}
                     <View style={styles.hydrationIconPercentageContainer}>
                       <MaterialCommunityIcons 

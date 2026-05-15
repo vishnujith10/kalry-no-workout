@@ -3,7 +3,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
@@ -56,6 +56,31 @@ const HydrationTrackerScreen = () => {
 
   const progress = (currentIntake / dailyGoal) * 100;
   const isGoalAchieved = currentIntake >= dailyGoal;
+
+  // Animated water level (0–100 representing % fill)
+  const waterAnim = useRef(new Animated.Value(progress)).current;
+
+  useEffect(() => {
+    const targetProgress = Math.min((currentIntake / dailyGoal) * 100, 100);
+    Animated.timing(waterAnim, {
+      toValue: targetProgress,
+      duration: 800,
+      useNativeDriver: false,
+    }).start();
+  }, [currentIntake, dailyGoal]);
+
+  // Interpolate animated value to a percentage string for height/bottom
+  const animatedHeightStyle = waterAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+    extrapolate: 'clamp',
+  });
+
+  const animatedBottomStyle = waterAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+    extrapolate: 'clamp',
+  });
 
   // Get current date in YYYY-MM-DD format
   const getCurrentDate = () => {
@@ -886,9 +911,9 @@ const HydrationTrackerScreen = () => {
           {/* Glass jar highlight */}
           <View style={styles.glassHighlight} />
           {/* Water fill with glass effect */}
-          <View style={[styles.waterFill, { height: `${progress}%` }]} />
+          <Animated.View style={[styles.waterFill, { height: animatedHeightStyle }]} />
           {/* Water surface effect */}
-          <View style={[styles.waterSurface, { bottom: `${progress}%` }]} />
+          <Animated.View style={[styles.waterSurface, { bottom: animatedBottomStyle }]} />
           <View style={styles.waterTextContainer} pointerEvents="box-none">
             <Text style={styles.waterAmount}>{currentIntake.toFixed(2)}L</Text>
             <Text style={styles.waterGoal}>of {dailyGoal}L</Text>
