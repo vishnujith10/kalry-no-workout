@@ -496,7 +496,7 @@ export default function ProgressScreen() {
       };
       
       load();
-    }, [activeRange, activeMetric, isFetching, daily, logsCount, prevTotal, totals, userGoal, goalEngine])
+    }, [activeRange, activeMetric, isFetching, daily, logsCount, prevTotal, totals, userGoal])
   );
 
   // Helper function to calculate previous period range
@@ -777,33 +777,6 @@ export default function ProgressScreen() {
             <Text style={styles.deltaText}>
               {activeRange.label} vs previous: {deltaPct >= 0 ? '+' : ''}{deltaPct.toFixed(1)}%
             </Text>
-          </View>
-        )}
-
-        {/* Adaptive Goal Display */}
-        {adaptiveGoal && activeMetric === 'calories' && (
-          <View style={[styles.longCard, styles.adaptiveGoalCard, { marginTop: 16 }]}>
-            <Ionicons name="target" size={20} color="#0EA5E9" />
-            <View style={{ marginLeft: 8, flex: 1 }}>
-              <Text style={[styles.statTitle, { color: '#0EA5E9', fontWeight: '700' }]}>
-                Today&apos;s Adaptive Goal
-              </Text>
-              <Text style={[styles.statValue, { color: '#0369A1', fontSize: 18 }]}>
-                {adaptiveGoal.min}-{adaptiveGoal.max} calories
-              </Text>
-              <Text style={[styles.dataSummaryText, { color: '#0369A1', marginTop: 4 }]}>
-                {adaptiveGoal.displayMessage}
-              </Text>
-              {adaptiveGoal.reasons && adaptiveGoal.reasons.length > 0 && (
-                <View style={{ marginTop: 8 }}>
-                  {adaptiveGoal.reasons.slice(0, 2).map((reason, index) => (
-                    <Text key={index} style={[styles.dataSummaryText, { color: '#0369A1', fontSize: 12 }]}>
-                      • {reason.message || reason.explanation}
-                    </Text>
-                  ))}
-                </View>
-              )}
-            </View>
           </View>
         )}
 
