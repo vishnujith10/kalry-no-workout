@@ -292,13 +292,17 @@ const MainDashboardScreen = ({ route }) => {
     todayWorkoutsRef.current = todayWorkouts;
   }, [calories, mealsLogged, todayWorkouts]);
   
-  // Sync state with cache immediately when cache updates (for optimistic updates)
+  // Sync state with cache immediately when cache updates
   useEffect(() => {
     const updateFromCache = () => {
       if (globalCache.cachedData) {
         setMealsLogged(globalCache.cachedData.mealsLogged || 0);
         setCalories(globalCache.cachedData.calories || 0);
         setTodayWorkouts(globalCache.cachedData.todayWorkouts || 0);
+        // Sync weight data too
+        if (globalCache.cachedData.currentWeight !== undefined) setCurrentWeight(globalCache.cachedData.currentWeight);
+        if (globalCache.cachedData.goalWeight !== undefined) setGoalWeight(globalCache.cachedData.goalWeight);
+        if (globalCache.cachedData.weightProgress !== undefined) setProgress(globalCache.cachedData.weightProgress);
       }
     };
     
@@ -312,11 +316,11 @@ const MainDashboardScreen = ({ route }) => {
     return unsubscribe;
   }, []);
 
-  // --- Weight Journey State ---
-  const [currentWeight, setCurrentWeight] = useState(null);
-  const [goalWeight, setGoalWeight] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [goalAchieved, setGoalAchieved] = useState(false);
+  // --- Weight Journey State with Cache Sync ---
+  const [currentWeight, setCurrentWeight] = useState(() => globalCache.cachedData?.currentWeight || null);
+  const [goalWeight, setGoalWeight] = useState(() => globalCache.cachedData?.goalWeight || null);
+  const [progress, setProgress] = useState(() => globalCache.cachedData?.weightProgress || 0);
+  const [goalAchieved, setGoalAchieved] = useState(() => globalCache.cachedData?.goalAchieved || false);
 
   const [realUserId, setRealUserId] = useState(null);
   
@@ -328,484 +332,6 @@ const MainDashboardScreen = ({ route }) => {
     };
     getUser();
   }, []);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      // Fetch latest sleep log
-      const fetchLastSleep = async () => {
-        if (!realUserId) return;
-        const { data, error } = await supabase
-          .from('sleep_logs')
-          .select('*')
-          .eq('user_id', realUserId)
-          .order('date', { ascending: false })
-          .limit(1);
-        if (data && data[0]) {
-          const log = data[0];
-          // Calculate duration
-          const [sh, sm] = log.start_time.split(':').map(Number);
-          const [eh, em] = log.end_time.split(':').map(Number);
-          let mins = (eh * 60 + em) - (sh * 60 + sm);
-          if (mins < 0) mins += 24 * 60;
-          setLastSleepDuration(`${Math.floor(mins / 60)}h ${mins % 60}m`);
-        } else {
-          setLastSleepDuration('--');
-        }
-      };
-      fetchLastSleep();
-
-      // --- Fetch Weight Data ---
-      const fetchWeightData = async () => {
-        if (!realUserId) return;
-        // Fetch user profile for goal weight and goal type
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profile')
-          .select('weight, target_weight, goal_focus')
-          .eq('id', realUserId)
-          .single();
-        
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-        }
-        
-        if (profile) {
-          // Set goal weight - handle both target_weight and any variations
-          const goalValue = profile.target_weight || profile.targetWeight || null;
-          if (goalValue !== null && goalValue !== undefined) {
-            const goalNum = Number(goalValue);
-            if (!isNaN(goalNum) && goalNum > 0) {
-              setGoalWeight(goalNum);
-              console.log('✅ Goal weight set from profile:', goalNum, 'kg');
-            } else {
-              console.log('⚠️ Invalid goal weight value in profile:', goalValue);
-              // Try fallback to onboardingData
-              const fallbackGoal = onboardingData?.target_weight;
-              if (fallbackGoal) {
-                const fallbackNum = Number(fallbackGoal);
-                if (!isNaN(fallbackNum) && fallbackNum > 0) {
-                  setGoalWeight(fallbackNum);
-                  console.log('✅ Goal weight set from onboardingData:', fallbackNum, 'kg');
-                } else {
-                  setGoalWeight(null);
-                }
-              } else {
-                setGoalWeight(null);
-              }
-            }
-          } else {
-            console.log('⚠️ No target_weight found in profile, trying onboardingData...');
-            // Fallback to onboardingData
-            const fallbackGoal = onboardingData?.target_weight;
-            if (fallbackGoal) {
-              const fallbackNum = Number(fallbackGoal);
-              if (!isNaN(fallbackNum) && fallbackNum > 0) {
-                setGoalWeight(fallbackNum);
-                console.log('✅ Goal weight set from onboardingData:', fallbackNum, 'kg');
-              } else {
-                console.log('⚠️ Invalid goal weight in onboardingData:', fallbackGoal);
-                setGoalWeight(null);
-              }
-            } else {
-              console.log('❌ No goal weight found in profile or onboardingData');
-              setGoalWeight(null);
-            }
-          }
-        } else {
-          console.log('⚠️ No profile found, trying onboardingData...');
-          // Fallback to onboardingData if profile doesn't exist
-          const fallbackGoal = onboardingData?.target_weight;
-          if (fallbackGoal) {
-            const fallbackNum = Number(fallbackGoal);
-            if (!isNaN(fallbackNum) && fallbackNum > 0) {
-              setGoalWeight(fallbackNum);
-              console.log('✅ Goal weight set from onboardingData:', fallbackNum, 'kg');
-            } else {
-              setGoalWeight(null);
-            }
-          } else {
-            console.log('❌ No goal weight found');
-            setGoalWeight(null);
-          }
-        }
-        // Fetch all weight logs to find starting weight
-        // Order by date ascending to get oldest first, then we'll find max/min
-        const { data: logs, error: logsError } = await supabase
-          .from('weight_logs')
-          .select('weight, date')
-          .eq('user_id', realUserId)
-          .order('date', { ascending: true }); // Changed to ascending to process from oldest to newest
-        
-        if (logsError) {
-          console.error('Error fetching weight logs:', logsError);
-        }
-        
-        let latestWeight = 0;
-        let startWeight = 0;
-        
-        // Determine goal type first (needed for start weight calculation)
-        // Use goal_focus from profile, or fallback to onboardingData
-        let goalType = profile?.goal_focus || onboardingData?.goal_focus || 'maintain';
-        
-        // Also check if current weight vs goal weight to infer goal type if goal_focus is ambiguous
-        const goalNum = profile?.target_weight ? Number(profile.target_weight) : null;
-        const currentWeightHint = profile?.weight ? Number(profile.weight) : null;
-        
-        if (typeof goalType === 'string') {
-          goalType = goalType.toLowerCase();
-          if (goalType.includes('lose') || goalType.includes('loss') || goalType.includes('weight loss')) {
-            goalType = 'lose';
-          } else if (goalType.includes('gain') || goalType.includes('muscle')) {
-            goalType = 'gain';
-          } else {
-            // If goal_focus is ambiguous (e.g., "Stay Fit"), infer from weight relationship
-            if (goalNum && currentWeightHint && !isNaN(goalNum) && !isNaN(currentWeightHint)) {
-              if (currentWeightHint > goalNum) {
-                goalType = 'lose'; // Current > Goal = Weight Loss
-              } else if (currentWeightHint < goalNum) {
-                goalType = 'gain'; // Current < Goal = Weight Gain
-              } else {
-                goalType = 'maintain';
-              }
-            } else {
-              goalType = 'maintain';
-            }
-          }
-        } else {
-          // If goal_focus is not a string, infer from weight relationship
-          if (goalNum && currentWeightHint && !isNaN(goalNum) && !isNaN(currentWeightHint)) {
-            if (currentWeightHint > goalNum) {
-              goalType = 'lose';
-            } else if (currentWeightHint < goalNum) {
-              goalType = 'gain';
-            } else {
-              goalType = 'maintain';
-            }
-          } else {
-            goalType = 'maintain';
-          }
-        }
-        
-        try {
-          // Get latest weight (most recent entry - last in array since we ordered ascending)
-          if (logs && Array.isArray(logs) && logs.length > 0) {
-            const latestLog = logs[logs.length - 1]; // Last log is most recent (ascending order)
-            if (latestLog?.weight !== undefined && latestLog?.weight !== null) {
-              const weightNum = Number(latestLog.weight);
-              if (!isNaN(weightNum)) {
-                latestWeight = weightNum;
-              }
-            }
-          }
-          
-          // If no logs, use profile weight
-          if (latestWeight === 0 && profile?.weight !== undefined && profile?.weight !== null) {
-            const weightNum = Number(profile.weight);
-            latestWeight = !isNaN(weightNum) ? weightNum : 0;
-          }
-          
-          // Final validation: If we have both current and goal weights, double-check the goal type makes sense
-          // This MUST happen after we've fetched latestWeight
-          if (goalNum && latestWeight > 0 && !isNaN(goalNum) && !isNaN(latestWeight)) {
-            if (latestWeight > goalNum && goalType === 'gain') {
-              console.log('⚠️ Goal type mismatch: current (' + latestWeight + 'kg) > goal (' + goalNum + 'kg) but goalType is "gain". Changing to "lose".');
-              goalType = 'lose';
-            } else if (latestWeight < goalNum && goalType === 'lose') {
-              console.log('⚠️ Goal type mismatch: current (' + latestWeight + 'kg) < goal (' + goalNum + 'kg) but goalType is "lose". Changing to "gain".');
-              goalType = 'gain';
-            }
-          }
-          
-          // For weight loss: If startWeight will equal latestWeight (no weight lost yet),
-          // and we have a goal that's lower than current, use a reasonable starting point
-          // This handles the case where user set goal but hasn't logged any higher weights
-          if (goalType === 'lose' && goalNum && latestWeight > goalNum && !isNaN(goalNum) && !isNaN(latestWeight)) {
-            // Check if we'll end up with startWeight = latestWeight (which means 0% progress)
-            // If so, and if onboarding weight is higher, use that
-            // Or estimate a starting weight that makes sense (e.g., current + some buffer)
-            const estimatedStartWeight = latestWeight + (latestWeight - goalNum) * 0.1; // Add 10% of the difference as buffer
-            console.log('ℹ️ Weight Loss: If no higher weight found in logs, estimated start weight would be:', estimatedStartWeight.toFixed(1), 'kg');
-          }
-          
-          // Get starting weight based on goal type
-          // IMPORTANT: profile.weight gets updated every time user logs weight,
-          // so we can't rely on it as the starting weight. We must use logs.
-          
-          // Adjust start weight based on goal type and available logs
-          if (logs && Array.isArray(logs) && logs.length > 0) {
-            if (goalType === 'lose') {
-              // For weight loss, find the MAXIMUM weight from all logs (highest point)
-              // This ensures we measure from the highest weight ever recorded
-              let maxWeight = 0;
-              logs.forEach(log => {
-                if (log?.weight !== undefined && log?.weight !== null) {
-                  const weightNum = Number(log.weight);
-                  if (!isNaN(weightNum) && weightNum > 0) {
-                    maxWeight = Math.max(maxWeight, weightNum);
-                  }
-                }
-              });
-              
-              // Also check profile.weight as a fallback (in case it's higher than all logs)
-              if (profile?.weight !== undefined && profile?.weight !== null) {
-                const profileWeightNum = Number(profile.weight);
-                if (!isNaN(profileWeightNum) && profileWeightNum > 0) {
-                  maxWeight = Math.max(maxWeight, profileWeightNum);
-                }
-              }
-              
-              // If maxWeight is still 0 or equals latestWeight, try onboardingData weight
-              // (This might be the weight when they set their goal)
-              if ((maxWeight === 0 || maxWeight === latestWeight) && onboardingData?.weight) {
-                const onboardingWeightNum = Number(onboardingData.weight);
-                if (!isNaN(onboardingWeightNum) && onboardingWeightNum > 0 && onboardingWeightNum >= latestWeight) {
-                  maxWeight = Math.max(maxWeight, onboardingWeightNum);
-                  console.log('📊 Weight Loss: Using onboarding weight as start hint:', onboardingWeightNum, 'kg');
-                }
-              }
-              
-              // If still no higher weight found, and we have a goal that's lower than current,
-              // estimate a reasonable starting weight (current weight + small buffer)
-              // This ensures we show some progress potential even if user hasn't logged higher weights
-              if (maxWeight === 0 || maxWeight === latestWeight) {
-                const goalNum = profile?.target_weight ? Number(profile.target_weight) : null;
-                if (goalNum && latestWeight > goalNum && !isNaN(goalNum)) {
-                  // Estimate start weight as current + 10% of the difference to goal
-                  // This gives a reasonable starting point for progress calculation
-                  const estimatedStart = latestWeight + Math.max(1, (latestWeight - goalNum) * 0.15); // At least 1kg buffer, or 15% of difference
-                  maxWeight = estimatedStart;
-                  console.log('📊 Weight Loss: No higher weight found. Estimating start weight as:', estimatedStart.toFixed(1), 'kg (current:', latestWeight, 'kg, goal:', goalNum, 'kg)');
-                }
-              }
-              
-              startWeight = maxWeight > 0 ? maxWeight : latestWeight;
-              console.log('📊 Weight Loss: Using maximum weight as start:', startWeight, 'kg (from', logs.length, 'logs, latest:', latestWeight, 'kg, onboarding:', onboardingData?.weight, 'kg)');
-            } else if (goalType === 'gain') {
-              // For weight gain, find the MINIMUM weight from all logs (lowest point)
-              let minWeight = Infinity;
-              logs.forEach(log => {
-                if (log?.weight !== undefined && log?.weight !== null) {
-                  const weightNum = Number(log.weight);
-                  if (!isNaN(weightNum) && weightNum > 0) {
-                    minWeight = Math.min(minWeight, weightNum);
-                  }
-                }
-              });
-              
-              // Also check profile.weight as a fallback
-              if (profile?.weight !== undefined && profile?.weight !== null) {
-                const profileWeightNum = Number(profile.weight);
-                if (!isNaN(profileWeightNum) && profileWeightNum > 0) {
-                  minWeight = Math.min(minWeight, profileWeightNum);
-                }
-              }
-              
-              startWeight = minWeight !== Infinity ? minWeight : latestWeight;
-              console.log('📊 Weight Gain: Using minimum weight as start:', startWeight, 'kg (from', logs.length, 'logs, latest:', latestWeight, 'kg)');
-            } else {
-              // For maintain, use oldest log if available
-              const oldestLog = logs[0]; // First log (oldest, since we ordered ascending)
-              if (oldestLog?.weight !== undefined && oldestLog?.weight !== null) {
-                const oldestWeightNum = Number(oldestLog.weight);
-                if (!isNaN(oldestWeightNum) && oldestWeightNum > 0) {
-                  startWeight = oldestWeightNum;
-                }
-              } else if (profile?.weight !== undefined && profile?.weight !== null) {
-                const profileWeightNum = Number(profile.weight);
-                if (!isNaN(profileWeightNum) && profileWeightNum > 0) {
-                  startWeight = profileWeightNum;
-                }
-              }
-            }
-          } else {
-            // No logs available, use profile.weight as fallback
-            if (profile?.weight !== undefined && profile?.weight !== null) {
-              const profileWeightNum = Number(profile.weight);
-              if (!isNaN(profileWeightNum) && profileWeightNum > 0) {
-                startWeight = profileWeightNum;
-              }
-            }
-          }
-          
-          // For weight loss: If startWeight equals latestWeight and current > goal,
-          // it means we don't have historical data. Use current weight as start (0% progress is correct).
-          // But if we have a goal and current > goal, we should at least show that they have a goal to work towards.
-          if (goalType === 'lose' && startWeight < latestWeight && latestWeight > 0) {
-            console.log('⚠️ Weight Loss: startWeight (' + startWeight + ') < latestWeight (' + latestWeight + '), adjusting to latestWeight');
-            startWeight = latestWeight;
-          }
-          
-          // Special case: If startWeight equals latestWeight for weight loss, and we have a goal,
-          // this means the user hasn't lost any weight yet (0% progress is correct)
-          if (goalType === 'lose' && startWeight === latestWeight && profile?.target_weight) {
-            const goalNum = Number(profile.target_weight);
-            if (!isNaN(goalNum) && goalNum > 0 && latestWeight > goalNum) {
-              console.log('ℹ️ Weight Loss: startWeight equals current weight (' + startWeight + 'kg). User hasn\'t lost weight yet. Progress will be 0%.');
-            }
-          }
-          
-          // For weight gain: Ensure startWeight is <= latestWeight (can't start higher than current)
-          if (goalType === 'gain' && startWeight > latestWeight && latestWeight > 0) {
-            console.log('⚠️ Weight Gain: startWeight (' + startWeight + ') > latestWeight (' + latestWeight + '), adjusting to latestWeight');
-            startWeight = latestWeight;
-          }
-          
-          // Final fallback: if still no start weight, use latest weight
-          if (startWeight === 0 || startWeight === null || isNaN(startWeight)) {
-            console.log('⚠️ No valid start weight found, using latest weight as fallback');
-            startWeight = latestWeight;
-          }
-        } catch (error) {
-          console.error('Error parsing weight:', error);
-          latestWeight = profile?.weight ? Number(profile.weight) || 0 : 0;
-          startWeight = latestWeight;
-        }
-        
-        setCurrentWeight(latestWeight > 0 ? latestWeight : null);
-        
-        // Calculate progress based on goal type
-        try {
-          if (profile && profile.target_weight && latestWeight > 0 && startWeight > 0) {
-            const goalNum = Number(profile.target_weight);
-            const goal = !isNaN(goalNum) && goalNum > 0 ? goalNum : null;
-            
-            // Goal type was already determined above
-            
-            if (goal && goal > 0 && startWeight > 0) {
-          let prog = 0;
-              let isGoalAchieved = false;
-          
-          console.log('Weight Progress Debug:', {
-                startWeight,
-            current: latestWeight,
-            goal,
-                goalType,
-                profileWeight: profile.weight,
-                totalToLose: goalType === 'lose' ? (startWeight - goal) : null,
-                totalToGain: goalType === 'gain' ? (goal - startWeight) : null,
-                lostSoFar: goalType === 'lose' ? (startWeight - latestWeight) : null,
-                gainedSoFar: goalType === 'gain' ? (latestWeight - startWeight) : null,
-              });
-              
-              if (goalType === 'lose') {
-                // Weight Loss: Progress should show how close current weight is to goal
-                // Progress increases as user gets closer to goal (remaining weight decreases)
-                if (startWeight > goal && latestWeight >= goal) {
-                  const remainingToLose = latestWeight - goal;
-                  const totalToLoseFromStart = startWeight - goal;
-                  
-                  // Use a reference range that ensures progress increases as remaining decreases
-                  // Formula: reference = remaining * multiplier + base
-                  // This creates a scale where progress increases faster as you get closer to goal
-                  // When remaining is small (close to goal), progress is high (>80%)
-                  // When remaining is large (far from goal), progress is lower but still meaningful
-                  const baseReference = 8; // Base reference to ensure minimum range
-                  const multiplier = 2.5; // Multiplier for remaining weight (lower = higher progress when close)
-                  const minReferenceRange = remainingToLose > 0 
-                    ? (remainingToLose * multiplier + baseReference)
-                    : totalToLoseFromStart;
-                  
-                  // Use the larger of: actual start-to-goal range or calculated reference
-                  // This ensures we use actual progress when user has lost significant weight
-                  const totalToLose = Math.max(totalToLoseFromStart, minReferenceRange);
-                  
-                  console.log('Weight Loss Calculation:', {
-                    startWeight,
-                    latestWeight,
-                    goal,
-                    totalToLoseFromStart,
-                    remainingToLose,
-                    minReferenceRange,
-                    totalToLose,
-                    rawProgress: 1 - (remainingToLose / totalToLose)
-                  });
-                  
-                  // Calculate progress as: how close you are to the goal
-                  // Progress = 1 - (remaining / total)
-                  // With the formula above, as remaining decreases, the ratio decreases faster
-                  // Example: remaining=6kg -> ref=23kg -> progress = 1 - (6/23) = 74%
-                  //          remaining=3kg -> ref=15.5kg -> progress = 1 - (3/15.5) = 81%
-                  // Progress increases as you get closer to goal!
-                  if (totalToLose > 0) {
-                    const remainingRatio = remainingToLose / totalToLose;
-                    prog = Math.max(0, Math.min(1, 1 - remainingRatio));
-          } else {
-                    prog = 0;
-                  }
-                  
-                  // Goal achieved when current weight <= goal weight
-                  isGoalAchieved = latestWeight <= goal;
-                } else if (latestWeight < goal) {
-                  // Already achieved goal (current < goal)
-            prog = 1;
-                  isGoalAchieved = true;
-                } else {
-                  // If start <= goal, can't lose weight (invalid goal)
-                  prog = 0;
-                  isGoalAchieved = false;
-                }
-              } else if (goalType === 'gain') {
-                // Weight Gain: Progress = (currentWeight - startWeight) / (goalWeight - startWeight)
-                // Example: start=60kg, goal=70kg, current=65kg
-                // Progress = (65-60) / (70-60) = 5/10 = 50%
-                if (goal > startWeight) {
-                  const totalToGain = goal - startWeight;
-                  const gainedSoFar = latestWeight - startWeight;
-                  
-                  // Handle case where user lost weight (negative progress)
-                  if (gainedSoFar < 0) {
-                    prog = 0; // No progress if weight decreased
-                  } else {
-                    prog = totalToGain > 0 ? Math.max(0, Math.min(1, gainedSoFar / totalToGain)) : 0;
-                  }
-                  
-                  // Goal achieved when current weight >= goal weight
-                  isGoalAchieved = latestWeight >= goal;
-                } else {
-                  // If goal <= start, can't gain weight (invalid goal)
-                  prog = 0;
-                  isGoalAchieved = false;
-                }
-              } else {
-                // Maintain: Show progress based on how close to goal
-                // Within 1kg of goal = 100% progress
-                const diff = Math.abs(latestWeight - goal);
-                if (diff <= 1) {
-                  prog = 1;
-                  isGoalAchieved = true;
-                } else {
-                  // Show progress as inverse of distance from goal (max 2kg away = 0%)
-                  const maxDiff = 2;
-                  prog = Math.max(0, Math.min(1, 1 - (diff / maxDiff)));
-                  isGoalAchieved = false;
-                }
-              }
-              
-              // Ensure prog is a valid number
-              if (!isNaN(prog) && isFinite(prog)) {
-                console.log('Calculated progress:', prog, 'Percentage:', Math.round(prog * 100) + '%', 'Goal Type:', goalType, 'Achieved:', isGoalAchieved);
-                setProgress(prog);
-          setGoalAchieved(isGoalAchieved);
-        } else {
-                setProgress(0);
-                setGoalAchieved(false);
-              }
-            } else {
-              setProgress(0);
-              setGoalAchieved(false);
-            }
-          } else {
-            setProgress(0);
-            setGoalAchieved(false);
-          }
-        } catch (error) {
-          console.error('Error calculating progress:', error);
-          setProgress(0);
-          setGoalAchieved(false);
-        }
-      };
-      fetchWeightData();
-    }, [realUserId, onboardingData?.target_weight, onboardingData?.goal_focus, onboardingData?.weight])
-  );
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -959,14 +485,16 @@ const MainDashboardScreen = ({ route }) => {
           const endOfDay = new Date(today).setHours(23, 59, 59, 999);
           const todayStr = today.toISOString().slice(0, 10);
           
-          const [foodLogs, sleepData, cardioData, routineData] = await Promise.all([
+          const [foodLogs, sleepData, cardioData, routineData, weightProfile, weightLogs] = await Promise.all([
             getFoodLogs(realUserId),
             supabase.from('sleep_logs').select('*').eq('user_id', realUserId).order('date', { ascending: false }).limit(7),
             supabase.from('saved_cardio_sessions').select('id').eq('user_id', realUserId).gte('created_at', new Date(startOfDay).toISOString()).lte('created_at', new Date(endOfDay).toISOString()),
-            supabase.from('workouts').select('id').eq('user_id', realUserId).gte('created_at', new Date(startOfDay).toISOString()).lte('created_at', new Date(endOfDay).toISOString())
+            supabase.from('workouts').select('id').eq('user_id', realUserId).gte('created_at', new Date(startOfDay).toISOString()).lte('created_at', new Date(endOfDay).toISOString()),
+            supabase.from('user_profile').select('weight, target_weight, goal_focus').eq('id', realUserId).single(),
+            supabase.from('weight_logs').select('weight, date').eq('user_id', realUserId).order('date', { ascending: true })
           ]);
           
-          // Process food logs
+          // Process food logs... (existing logic)
           const filteredLogs = foodLogs.filter(log => {
             const logDate = new Date(log.created_at).getTime();
             return logDate >= startOfDay && logDate <= endOfDay;
@@ -978,15 +506,92 @@ const MainDashboardScreen = ({ route }) => {
           if (sleepData.data) {
             setSleepLogs(sleepData.data);
             const todayLog = sleepData.data.find(l => l.date?.slice(0, 10) === todayStr);
-        setTodaySleepLog(todayLog || null);
+            setTodaySleepLog(todayLog || null);
             if (sleepData.data[0]?.sleep_goal) setSleepGoal(sleepData.data[0].sleep_goal);
+            
+            // Calculate last sleep duration
+            if (todayLog) {
+              const [sh, sm] = todayLog.start_time.split(':').map(Number);
+              const [eh, em] = todayLog.end_time.split(':').map(Number);
+              let mins = (eh * 60 + em) - (sh * 60 + sm);
+              if (mins < 0) mins += 24 * 60;
+              setLastSleepDuration(`${Math.floor(mins / 60)}h ${mins % 60}m`);
+            }
           }
           
           // Process workouts
           const workoutsCount = (cardioData.data?.length || 0) + (routineData.data?.length || 0);
           setTodayWorkouts(workoutsCount);
+
+          // --- Process Weight Data (Consolidated) ---
+          let latestWeight = 0;
+          let startWeight = 0;
+          let goalNum = null;
+          let prog = 0;
+          let isGoalAchieved = false;
+
+          const profile = weightProfile.data;
+          const logs = weightLogs.data || [];
+
+          if (profile) {
+            goalNum = profile.target_weight || onboardingData?.target_weight || null;
+            if (goalNum) goalNum = Number(goalNum);
+
+            // Latest weight logic (logs are ascending, so last is latest)
+            if (logs.length > 0) {
+              latestWeight = Number(logs[logs.length - 1].weight);
+            } else {
+              latestWeight = Number(profile.weight) || Number(onboardingData?.weight) || 0;
+            }
+
+            // Goal type logic
+            let rawGoal = profile.goal_focus || onboardingData?.goal_focus || 'maintain';
+            let goalType = String(rawGoal).toLowerCase();
+            if (goalType.includes('lose') || goalType.includes('loss')) goalType = 'lose';
+            else if (goalType.includes('gain') || goalType.includes('muscle')) goalType = 'gain';
+            else goalType = 'maintain';
+
+            // Start weight logic - find baseline for progress
+            const allWeights = [
+              ...logs.map(l => Number(l.weight)),
+              Number(profile.weight),
+              Number(onboardingData?.weight)
+            ].filter(w => w > 0 && !isNaN(w));
+
+            if (goalType === 'lose') {
+              // For loss, start weight is the highest we've seen
+              startWeight = allWeights.length > 0 ? Math.max(...allWeights) : latestWeight;
+              // If start equals latest but current > goal, we haven't lost weight yet (0% is correct)
+            } else if (goalType === 'gain') {
+              // For gain, start weight is the lowest we've seen
+              startWeight = allWeights.length > 0 ? Math.min(...allWeights) : latestWeight;
+            } else {
+              // For maintain, start weight is the oldest we've seen
+              startWeight = allWeights.length > 0 ? allWeights[0] : latestWeight;
+            }
+
+            // Progress calculation logic (Absolute ratio as requested by user)
+            if (goalNum && goalNum > 0 && latestWeight > 0) {
+              if (goalType === 'lose') {
+                // For weight loss, progress is Goal / Current (e.g., 60/65 = 92%)
+                // If current <= goal, progress is 100%
+                prog = latestWeight <= goalNum ? 1 : goalNum / latestWeight;
+                isGoalAchieved = latestWeight <= goalNum;
+              } else {
+                // For weight gain or maintain, progress is Current / Goal (e.g., 55/60 = 91.67%)
+                // If current >= goal (for gain), progress is 100%
+                prog = latestWeight >= goalNum ? 1 : latestWeight / goalNum;
+                isGoalAchieved = goalType === 'gain' ? latestWeight >= goalNum : Math.abs(latestWeight - goalNum) <= 1;
+              }
+            }
+          }
+
+          setCurrentWeight(latestWeight > 0 ? latestWeight : null);
+          setGoalWeight(goalNum);
+          setProgress(prog);
+          setGoalAchieved(isGoalAchieved);
           
-          // Cache the data - create new object reference to trigger React updates
+          // Cache the data
           globalCache.cachedData = {
             mealsLogged: filteredLogs.length,
             calories: filteredLogs.reduce((sum, log) => sum + (log.calories || 0), 0),
@@ -994,6 +599,10 @@ const MainDashboardScreen = ({ route }) => {
             todaySleepLog: sleepData.data?.find(l => l.date?.slice(0, 10) === todayStr) || null,
             sleepGoal: sleepData.data?.[0]?.sleep_goal || 8,
             todayWorkouts: workoutsCount,
+            currentWeight: latestWeight > 0 ? latestWeight : null,
+            goalWeight: goalNum,
+            weightProgress: prog,
+            goalAchieved: isGoalAchieved
           };
           
           // Update cache timestamp
