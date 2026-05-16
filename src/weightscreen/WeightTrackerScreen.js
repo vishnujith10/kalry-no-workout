@@ -45,63 +45,59 @@ const WeightTrackerScreen = ({ navigation }) => {
     const [refreshing, setRefreshing] = useState(false);
     const [userProfile, setUserProfile] = useState(() => globalWeightCache.cachedData?.userProfile || null);
 
+    // Synchronous cache restoration to prevent flickering (Instagram pattern)
+    const [currentWeight, setCurrentWeight] = useState(() => {
+        if (globalWeightCache.cachedData) {
+            const cLogs = globalWeightCache.cachedData.logs;
+            const cProfile = globalWeightCache.cachedData.userProfile;
+            return cLogs?.length > 0 ? Number(cLogs[0].weight) : (cProfile?.weight || null);
+        }
+        return null;
+    });
+    const [goalWeight, setGoalWeight] = useState(() => globalWeightCache.cachedData?.userProfile?.target_weight || null);
+    const [realUserId, setRealUserId] = useState(null);
 
-    // Get userId from Supabase Auth
-    const [userId, setUserId] = useState(null);
+    // Get user ID on mount
     useEffect(() => {
-        const getUserId = async () => {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-            setUserId(session?.user?.id || null);
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id) setRealUserId(user.id);
         };
-        getUserId();
+        getUser();
     }, []);
 
-
-    // Fetch user profile and logs with caching (Instagram pattern)
+    // Fetch user profile and logs with caching
     useFocusEffect(
         React.useCallback(() => {
-            if (!userId) return;
+            if (!realUserId) return;
 
-            const now = Date.now();
-            const timeSinceLastFetch = now - globalWeightCache.lastFetchTime;
+            const load = async () => {
+                const now = Date.now();
+                const isFresh = (now - globalWeightCache.lastFetchTime) < globalWeightCache.CACHE_DURATION;
 
-            // Check cache - if fresh, restore from cache and skip fetch
-            if (timeSinceLastFetch < globalWeightCache.CACHE_DURATION && globalWeightCache.cachedData) {
-                // Only update state if it's different (prevent unnecessary re-renders)
-                if (JSON.stringify(globalWeightCache.cachedData.logs) !== JSON.stringify(logs)) {
-                    setLogs(globalWeightCache.cachedData.logs || []);
+                // If cache is fresh, states are already initialized or we can refresh them from cache silently
+                if (isFresh && globalWeightCache.cachedData) {
+                    const cProfile = globalWeightCache.cachedData.userProfile;
+                    const cLogs = globalWeightCache.cachedData.logs;
+                    setLogs(cLogs || []);
+                    setUserProfile(cProfile || null);
+                    setCurrentWeight(cLogs?.length > 0 ? Number(cLogs[0].weight) : (cProfile?.weight || null));
+                    setGoalWeight(cProfile?.target_weight || null);
+                    return;
                 }
-                if (JSON.stringify(globalWeightCache.cachedData.userProfile) !== JSON.stringify(userProfile)) {
-                    setUserProfile(globalWeightCache.cachedData.userProfile || null);
-                    if (globalWeightCache.cachedData.userProfile) {
-                        setOnboardingData((prev) => ({
-                            ...prev,
-                            weight: globalWeightCache.cachedData.userProfile.weight || prev.weight,
-                            target_weight: globalWeightCache.cachedData.userProfile.target_weight || prev.target_weight,
-                            selectedWeightUnit: globalWeightCache.cachedData.userProfile.weight_unit || prev.selectedWeightUnit || "kg",
-                        }));
-                    }
-                }
-                return; // Use cached data
-            }
 
-            // Prevent concurrent fetches
-            if (globalWeightCache.isFetching) return;
-            globalWeightCache.isFetching = true;
+                if (globalWeightCache.isFetching) return;
+                globalWeightCache.isFetching = true;
 
-            const fetchData = async () => {
                 try {
-                    // Fetch user profile
-                    const { data: profile, error: profileError } = await supabase
-                        .from("user_profile")
-                        .select("weight, target_weight, weight_unit")
-                        .eq("id", userId)
-                        .single();
+                    const [{ data: profile, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
+                        supabase.from("user_profile").select("weight, target_weight, weight_unit").eq("id", realUserId).single(),
+                        supabase.from("weight_logs").select("*").eq("user_id", realUserId).order("date", { ascending: false }),
+                    ]);
 
                     if (!profileError && profile) {
                         setUserProfile(profile);
+                        setGoalWeight(profile.target_weight || null);
                         setOnboardingData((prev) => ({
                             ...prev,
                             weight: profile.weight || prev.weight,
@@ -110,31 +106,35 @@ const WeightTrackerScreen = ({ navigation }) => {
                         }));
                     }
 
-                    // Fetch weight logs
-                    const { data: logsData, error: logsError } = await supabase
-                        .from("weight_logs")
-                        .select("*")
-                        .eq("user_id", userId)
-                        .order("date", { ascending: false });
-
                     if (!logsError && logsData) {
                         setLogs(logsData);
                     }
 
-                    // Update cache
+                    // Update current weight state
+                    let latestWeight = 0;
+                    if (logsData && logsData.length > 0) {
+                        latestWeight = Number(logsData[0].weight);
+                    } else if (profile?.weight) {
+                        latestWeight = Number(profile.weight);
+                    } else if (onboardingData?.weight) {
+                        latestWeight = Number(onboardingData.weight);
+                    }
+                    
+                    if (latestWeight > 0) setCurrentWeight(latestWeight);
+
                     globalWeightCache.cachedData = {
                         logs: logsData || [],
                         userProfile: profile || null,
                     };
                     globalWeightCache.lastFetchTime = Date.now();
                 } catch (error) {
-                    // Silent error handling
+                    console.error('WeightTracker fetch error:', error);
                 } finally {
                     globalWeightCache.isFetching = false;
                 }
             };
-            fetchData();
-        }, [userId, refreshing, setOnboardingData])
+            load();
+        }, [realUserId, refreshing, onboardingData?.weight, setOnboardingData])
     );
 
 
@@ -147,28 +147,41 @@ const WeightTrackerScreen = ({ navigation }) => {
     }, [navigation]);
 
 
-    // --- Weight Logic ---
+    // Weight Logic matching Dashboard display
     const weightUnit = userProfile?.weight_unit || onboardingData?.selectedWeightUnit || "kg";
-    // Current weight: from user profile, or most recent log's weight, or 0 if no data
-    const currentWeight = userProfile?.weight || (logs.length > 0 ? Number(logs[0].weight) : 0);
-    // Weekly change: find log closest to 7 days ago, or use originalWeight if no log
+    
+    // Display value for current weight (with unit conversion if necessary)
+    const displayWeight = currentWeight != null 
+        ? (weightUnit === 'lbs' ? Number((currentWeight * 2.20462).toFixed(1)) : currentWeight)
+        : null;
+    // Weekly change calculation: compare current to log from ~7 days ago
     let weeklyChange = 0;
-    if (logs.length > 0) {
+    if (currentWeight && logs.length > 1) {
+        // Find log closest to 7 days ago
         const today = new Date();
         const weekAgo = new Date(today);
         weekAgo.setDate(today.getDate() - 7);
-        let closest = logs[0];
-        let minDiff = Math.abs(new Date(logs[0].date) - weekAgo);
-        for (let log of logs) {
-            const diff = Math.abs(new Date(log.date) - weekAgo);
+        
+        let historicalLog = logs[logs.length - 1]; // Fallback to oldest log
+        let minDiff = Infinity;
+        
+        // Skip current log (index 0) to find a past weight
+        for (let i = 1; i < logs.length; i++) {
+            const diff = Math.abs(new Date(logs[i].date) - weekAgo);
             if (diff < minDiff) {
                 minDiff = diff;
-                closest = log;
+                historicalLog = logs[i];
             }
         }
-        weeklyChange = (currentWeight - Number(closest.weight)).toFixed(1);
-    } else {
-        weeklyChange = 0;
+        
+        const currentVal = weightUnit === 'lbs' ? currentWeight * 2.20462 : currentWeight;
+        const pastVal = weightUnit === 'lbs' ? Number(historicalLog.weight) * 2.20462 : Number(historicalLog.weight);
+        weeklyChange = Number((currentVal - pastVal).toFixed(1));
+    } else if (currentWeight && onboardingData?.weight) {
+        // If only 1 log, compare with original onboarding weight
+        const currentVal = weightUnit === 'lbs' ? currentWeight * 2.20462 : currentWeight;
+        const pastVal = weightUnit === 'lbs' ? Number(onboardingData.weight) * 2.20462 : Number(onboardingData.weight);
+        weeklyChange = Number((currentVal - pastVal).toFixed(1));
     }
 
 
@@ -338,18 +351,17 @@ const WeightTrackerScreen = ({ navigation }) => {
                 <Text style={styles.todaysWeightLabel}>Current Weight</Text>
                 <View style={styles.weightDisplay}>
                     <Text style={styles.weightValue}>
-                        {currentWeight ? Number(currentWeight).toFixed(0) : "--"}
+                        {displayWeight != null ? Number(displayWeight).toFixed(1) : "--"}
                     </Text>
                     <Text style={styles.weightUnit}>{weightUnit}</Text>
                 </View>
                 <Text
                     style={[
                         styles.weightChange,
-                        { color: weeklyChange < 0 ? ACCENT_GREEN : ACCENT_RED },
+                        { color: weeklyChange < 0 ? ACCENT_GREEN : (weeklyChange > 0 ? ACCENT_RED : GRAY) },
                     ]}
                 >
-                    {weeklyChange < 0 ? "-" : "+"}
-                    {Math.abs(weeklyChange)} {weightUnit} since last week
+                    {weeklyChange === 0 ? "No change" : `${Math.abs(weeklyChange)} ${weightUnit} ${weeklyChange > 0 ? "gained" : "lost"}`} since last week
                 </Text>
             </View>
 
